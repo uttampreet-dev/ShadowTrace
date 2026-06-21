@@ -62,11 +62,11 @@ Alert Generated       Coordinated narrative burst detected
 
 ## Mission Control Dashboard
 
-![Dashboard Overview](docs/screenshots/dashboard.png)
+![Dashboard Overview](docs/dashboard.png)
 
-![Network Propagation Graph](docs/screenshots/network.png)
+![Network Propagation Graph](docs/network.png)
 
-![Alert Feed](docs/screenshots/alerts.png)
+![Alert Feed](docs/alerts.png)
 
 ---
 
