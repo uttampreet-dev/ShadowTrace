@@ -16,11 +16,9 @@
 
 ## Live Demo
 
-**Dashboard →** https://shadowtrace-bay.vercel.app/dashboard
+https://shadowtrace-bay.vercel.app
 
-**Network Graph →** https://shadowtrace-bay.vercel.app/dashboard/network
-
-**Alert Feed →** https://shadowtrace-bay.vercel.app/dashboard/alerts
+Explore the Mission Control dashboard, propagation network, alert feed, and campaign reports through the interactive interface.
 
 ---
 
