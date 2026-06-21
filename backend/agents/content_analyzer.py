@@ -69,6 +69,12 @@ class ContentAnalyzer:
                     value = float(row.get("score", 0.0))
                     if any(token in label for token in ("fake", "misinfo", "false", "rumor", "contradict")):
                         score = max(score, value * 100)
+                # LABEL_X format: LABEL_1 is the positive/fake class by convention
+                if score == 0.0:
+                    for row in rows:
+                        if str(row.get("label", "")).lower() == "label_1":
+                            score = float(row.get("score", 0.0)) * 100
+                            break
                 if score == 0.0 and rows:
                     fallback_row = next(
                         (row for row in rows if str(row.get("label", "")).lower() in {"fake", "false", "misinformation"}),

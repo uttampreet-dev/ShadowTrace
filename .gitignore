@@ -33,9 +33,16 @@ build/
 dist/
 *.egg-info/
 
+# Next.js
+.next/
+node_modules/
+tsconfig.tsbuildinfo
+next-env.d.ts
+
 # Jupyter
 .ipynb_checkpoints/
 
 # Secrets
 secrets.json
 config.local.json
+.vercel
