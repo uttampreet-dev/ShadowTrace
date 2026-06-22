@@ -315,8 +315,30 @@ ShadowTrace/
 │   │   └── schemas.py
 │   └── data/                       # Synthetic campaign datasets
 └── docs/
-    └── screenshots/
+    ├── Technical_Documentation.md
+    ├── dashboard.png
+    ├── network.png
+    └── alerts.png
 ```
+
+---
+
+## Future Scope
+
+- **Live Telegram Ingestion** — Telethon connector to monitor public channels in real time, feeding directly into the agent pipeline
+- **WhatsApp Forward Analysis** — analyze forwarded message chains and detect synchronized broadcast patterns across unrelated groups
+- **DeepfakeDetector — Live Activation** — agent is implemented and integrated, activates once live media ingestion connectors are online
+- **Twitter/X Live Connector** — Nitter-based real-time ingestion replacing synthetic datasets with live account interaction data
+- **Production Graph Database (Neo4j)** — migrate from in-memory NetworkX to Neo4j for persistent, queryable network storage at scale
+- **Real-Time WebSocket Alerts** — sub-second push from agent detection to analyst dashboard, replacing the current polling model
+- **Journalist & Government API** — public REST API for newsrooms and government bodies to submit content and receive structured threat reports
+- **Exportable Evidence Packages** — PDF + JSON bundles per campaign formatted for submission to platform trust-and-safety teams
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE)
 
 ---
 
