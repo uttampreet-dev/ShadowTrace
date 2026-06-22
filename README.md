@@ -316,6 +316,7 @@ ShadowTrace/
 │   └── data/                       # Synthetic campaign datasets
 └── docs/
     ├── Technical_Documentation.md
+    ├── Architecture_Diagram.md
     ├── dashboard.png
     ├── network.png
     └── alerts.png
