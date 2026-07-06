@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

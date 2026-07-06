@@ -11,11 +11,6 @@ except Exception:  # pragma: no cover - optional dependency fallback
     END = None
     StateGraph = None
 
-try:
-    from sentence_transformers import SentenceTransformer
-except Exception:  # pragma: no cover - optional dependency fallback
-    SentenceTransformer = None
-
 from agents.content_analyzer import ContentAnalyzer
 from agents.network_mapper import NetworkMapper
 import numpy as np
@@ -127,7 +122,11 @@ class CampaignDetector:
     @staticmethod
     @lru_cache(maxsize=1)
     def _shared_sentence_model():
-        if SentenceTransformer is None:
+        # Lazy import: sentence-transformers pulls in torch, which must not
+        # load at startup on Render's 512MB free tier.
+        try:
+            from sentence_transformers import SentenceTransformer
+        except Exception:  # pragma: no cover - optional dependency fallback
             return None
         try:
             return SentenceTransformer("all-MiniLM-L6-v2")

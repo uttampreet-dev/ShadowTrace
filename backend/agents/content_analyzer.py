@@ -23,7 +23,16 @@ class ContentAnalyzer:
 
     def __init__(self, model_name: str = "mrm8488/bert-tiny-finetuned-fake-news-detection") -> None:
         self.model_name = model_name
-        self._pipeline = self._load_pipeline()
+        # Lazy: the HF pipeline is only loaded on the first analyze() call so
+        # the server can boot within Render's 512MB free-tier memory limit.
+        self._pipeline_loaded = False
+        self._pipeline: Any = None
+
+    def _get_pipeline(self) -> Any:
+        if not self._pipeline_loaded:
+            self._pipeline = self._load_pipeline()
+            self._pipeline_loaded = True
+        return self._pipeline
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -56,11 +65,12 @@ class ContentAnalyzer:
         return ContentAnalysisResult(int(round(score)), round(confidence, 3), signals)
 
     def _model_score(self, text: str) -> float:
-        if self._pipeline is None:
+        model = self._get_pipeline()
+        if model is None:
             return self._lexical_score(text)
 
         try:
-            result = self._pipeline(text[:512])
+            result = model(text[:512])
             if isinstance(result, list) and result:
                 rows = result[0] if isinstance(result[0], list) else result
                 score = 0.0
