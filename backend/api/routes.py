@@ -9,11 +9,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.agents.campaign_detector import CampaignDetector
-from backend.agents.content_analyzer import ContentAnalyzer
-from backend.agents.network_mapper import NetworkMapper
-from backend.agents.threat_classifier import ThreatClassifier
-from backend.api.schemas import (
+from agents.campaign_detector import CampaignDetector
+from agents.content_analyzer import ContentAnalyzer
+from agents.network_mapper import NetworkMapper
+from agents.threat_classifier import ThreatClassifier
+from api.schemas import (
     AnalyzeNetworkRequest,
     AnalyzeNetworkResponse,
     AnalyzeTextRequest,

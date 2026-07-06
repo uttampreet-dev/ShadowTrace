@@ -8,8 +8,8 @@ from typing import Any
 import json
 import networkx as nx
 
-from backend.graph.bot_detection import calculate_bot_score
-from backend.graph.community_detection import detect_communities
+from graph.bot_detection import calculate_bot_score
+from graph.community_detection import detect_communities
 
 
 @dataclass(slots=True)

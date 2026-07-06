@@ -16,8 +16,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency fallback
     SentenceTransformer = None
 
-from backend.agents.content_analyzer import ContentAnalyzer
-from backend.agents.network_mapper import NetworkMapper
+from agents.content_analyzer import ContentAnalyzer
+from agents.network_mapper import NetworkMapper
 import numpy as np
 
 
