@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { label: 'Network Graph', href: '/dashboard/network' },
   { label: 'Alert Feed',    href: '/dashboard/alerts' },
   { label: 'Agents',        href: '/dashboard/agents' },
+  { label: 'Account Intel', href: '/dashboard/account-intel' },
   { label: 'Reports',       href: '/dashboard/reports' },
 ]
 
@@ -48,6 +49,12 @@ export function BottomTabBar() {
         <rect x="3" y="4" width="10" height="9" /><line x1="6" y1="1" x2="6" y2="4" />
         <line x1="10" y1="1" x2="10" y2="4" /><circle cx="6" cy="8" r="1" fill="currentColor" />
         <circle cx="10" cy="8" r="1" fill="currentColor" /><path d="M5.5 11h5" />
+      </svg>
+    ),
+    '/dashboard/account-intel': (
+      <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <circle cx="5" cy="5" r="2.5" /><path d="M1 14c0-2.2 1.8-4 4-4s4 1.8 4 4" />
+        <circle cx="11.5" cy="5" r="2" /><path d="M10.5 9.5c2.5 0 4.5 1.6 4.5 4.5" />
       </svg>
     ),
     '/dashboard/reports': (
