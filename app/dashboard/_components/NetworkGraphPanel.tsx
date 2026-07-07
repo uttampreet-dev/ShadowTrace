@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import NetworkGraph from './NetworkGraph'
+import LiveFeedPanel from '@/components/LiveFeedPanel'
 import { campaigns as mockCampaigns } from '@/lib/mockData'
 import type { Campaign } from '@/types'
 
@@ -21,6 +22,7 @@ export default function NetworkGraphPanel() {
   const [visible,     setVisible]     = useState(0)     // which campaign data the graph shows
   const [opacity,     setOpacity]     = useState(1)     // graph fade opacity
   const [graphReady,  setGraphReady]  = useState(false) // skeleton until D3 entrance anim ends
+  const [showLive,    setShowLive]    = useState(false) // LIVE FEED tab replaces the graph
 
   // Clear any in-flight timeouts on rapid switching
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -71,6 +73,8 @@ export default function NetworkGraphPanel() {
   }, [])
 
   function switchTo(idx: number) {
+    if (idx === selected && !showLive) return
+    setShowLive(false)
     if (idx === selected) return
     timers.current.forEach(clearTimeout)
 
@@ -125,18 +129,67 @@ export default function NetworkGraphPanel() {
           </button>
         ))}
 
+        {/* LIVE FEED tab — green pulsing dot, green left border */}
+        <button
+          onClick={() => setShowLive(true)}
+          style={{
+            ...FONT,
+            display:         'inline-flex',
+            alignItems:      'center',
+            gap:             '6px',
+            fontSize:        '11px',
+            padding:         '3px 12px',
+            border:          '1px solid #1E2D4A',
+            borderLeft:      '2px solid #22C55E',
+            cursor:          'pointer',
+            backgroundColor: showLive ? '#22C55E' : 'transparent',
+            color:           showLive ? '#080E1A' : '#4A5568',
+            fontWeight:      showLive ? 600 : 400,
+            letterSpacing:   '0.04em',
+          }}
+        >
+          <span
+            className="st-pulse-dot"
+            style={{
+              display:         'inline-block',
+              width:           '5px',
+              height:          '5px',
+              borderRadius:    '50%',
+              backgroundColor: showLive ? '#080E1A' : '#22C55E',
+              flexShrink:      0,
+            }}
+          />
+          LIVE FEED
+        </button>
+
         {/* Right side: threat level + node count */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '10px', color: THREAT_COLOR[campaign.threat_level] }}>
-            {campaign.threat_level}
-          </span>
-          <span style={{ fontSize: '10px', color: '#4A5568', letterSpacing: '0.06em' }}>
-            {`${campaign.nodes.length} NODES · ${campaign.edges.length} EDGES`}
-          </span>
+          {showLive ? (
+            <span style={{ fontSize: '10px', color: '#22C55E', letterSpacing: '0.06em' }}>
+              REAL-TIME · FACT-CHECKER RSS
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: '10px', color: THREAT_COLOR[campaign.threat_level] }}>
+                {campaign.threat_level}
+              </span>
+              <span style={{ fontSize: '10px', color: '#4A5568', letterSpacing: '0.06em' }}>
+                {`${campaign.nodes.length} NODES · ${campaign.edges.length} EDGES`}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
+      {/* ── Live feed view (replaces graph when LIVE FEED tab active) ──────── */}
+      {showLive && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <LiveFeedPanel />
+        </div>
+      )}
+
       {/* ── Graph area ────────────────────────────────────────────────────── */}
+      {!showLive && (
       <div
         style={{
           flex:       1,
@@ -181,6 +234,7 @@ export default function NetworkGraphPanel() {
           onReady={() => setGraphReady(true)}
         />
       </div>
+      )}
 
     </div>
   )

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -69,6 +71,56 @@ def detect_campaign(payload: DetectCampaignRequest) -> DetectCampaignResponse:
 def generate_alert(payload: ThreatClassifierRequest) -> ThreatClassifierResponse:
     result = threat_classifier.classify(payload.payload)
     return ThreatClassifierResponse(**asdict(result))
+
+
+# ── /live-feed — real debunked claims from Indian fact-checker RSS feeds ───────
+
+_LIVE_FEED_TTL_SECONDS = 300  # don't hammer the RSS feeds
+_live_feed_cache: dict[str, Any] = {"data": None, "fetched_at": 0.0}
+
+
+@router.get("/live-feed")
+async def get_live_feed() -> dict[str, Any]:
+    """
+    Fetch real debunked claims from Indian fact-checkers
+    and analyze each through ContentAnalyzer pipeline.
+    """
+    from agents.fact_checker_ingestion import FACT_CHECKER_FEEDS, fetch_live_claims
+
+    now = time.time()
+    if _live_feed_cache["data"] and now - _live_feed_cache["fetched_at"] < _LIVE_FEED_TTL_SECONDS:
+        return _live_feed_cache["data"]
+
+    claims = fetch_live_claims()
+
+    analyzed_claims = []
+    for claim in claims:
+        try:
+            # Run real ContentAnalyzer on each claim title + summary
+            text = f"{claim['title']}. {claim['summary']}"
+            result = content_analyzer.analyze(text)
+            claim["ai_score"] = result.misinformation_score
+            claim["risk_level"] = (
+                "HIGH" if result.misinformation_score > 70
+                else "MED" if result.misinformation_score > 40
+                else "LOW"
+            )
+            claim["keywords"] = list(result.signals.keys())[:4]
+        except Exception:
+            claim["ai_score"] = 50
+            claim["risk_level"] = "MED"
+        analyzed_claims.append(claim)
+
+    payload = {
+        "items": analyzed_claims,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "total_count": len(analyzed_claims),
+        "sources": [f["name"] for f in FACT_CHECKER_FEEDS],
+    }
+    if analyzed_claims:  # never cache an all-feeds-down result
+        _live_feed_cache["data"] = payload
+        _live_feed_cache["fetched_at"] = now
+    return payload
 
 
 # ── /campaigns — primary source is Neo4j AuraDB; JSON files are the fallback ──

@@ -181,6 +181,30 @@ export default function Sidebar() {
               }}
             >
               {item.label}
+              {item.href === '/dashboard/network' && (
+                <span
+                  style={{
+                    marginLeft: '8px',
+                    fontSize: '8px',
+                    letterSpacing: '0.1em',
+                    color: '#22C55E',
+                  }}
+                >
+                  <span
+                    className="st-pulse-dot"
+                    style={{
+                      display: 'inline-block',
+                      width: '5px',
+                      height: '5px',
+                      borderRadius: '50%',
+                      backgroundColor: '#22C55E',
+                      marginRight: '4px',
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                  LIVE
+                </span>
+              )}
             </Link>
           )
         })}

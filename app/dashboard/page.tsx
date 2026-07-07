@@ -1,6 +1,7 @@
 import NetworkGraphPanel from './_components/NetworkGraphPanel'
 import AnalyzePanel      from './_components/AnalyzePanel'
 import AlertFeed         from './_components/AlertFeed'
+import LiveClaimsCell    from './_components/LiveClaimsCell'
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 
@@ -268,14 +269,15 @@ export default function OverviewPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(5, 1fr)',
           borderBottom: BORDER,
         }}
       >
         <MetricCell label="ACTIVE CAMPAIGNS" value="3"      valueColor="#EF4444" borderRight />
         <MetricCell label="BOTS DETECTED"    value="1,247"  valueColor="#F59E0B" borderRight />
         <MetricCell label="ALERTS TODAY"     value="18"                          borderRight />
-        <MetricCell label="AVG CONFIDENCE"   value="91.3%"                                   />
+        <MetricCell label="AVG CONFIDENCE"   value="91.3%"                       borderRight />
+        <LiveClaimsCell />
       </div>
 
       {/* ── Row 2: Threat Score ───────────────────────────────────────── */}
