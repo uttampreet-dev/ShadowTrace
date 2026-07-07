@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
+import os
+import re
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any
 
-import re
+try:
+    from groq import Groq
+except Exception:  # pragma: no cover - optional dependency fallback
+    Groq = None
 
 
 @dataclass(slots=True)
@@ -17,34 +22,23 @@ class ContentAnalysisResult:
 class ContentAnalyzer:
     """Score text for misinformation likelihood.
 
-    Uses HuggingFace RoBERTa when available, with a deterministic fallback so
-    the backend remains usable in offline hackathon environments.
+    Primary signal is a Groq LLM (Llama 3.3 70B) misinformation judgment; a
+    deterministic lexical scorer is blended in and also acts as the offline
+    fallback. Uses no local ML weights, so it runs in <100MB — fits Render's
+    512MB free tier where torch/transformers would OOM.
     """
 
-    def __init__(self, model_name: str = "mrm8488/bert-tiny-finetuned-fake-news-detection") -> None:
-        self.model_name = model_name
-        # Lazy: the HF pipeline is only loaded on the first analyze() call so
-        # the server can boot within Render's 512MB free-tier memory limit.
-        self._pipeline_loaded = False
-        self._pipeline: Any = None
-
-    def _get_pipeline(self) -> Any:
-        if not self._pipeline_loaded:
-            self._pipeline = self._load_pipeline()
-            self._pipeline_loaded = True
-        return self._pipeline
+    def __init__(self, model: str = "llama-3.3-70b-versatile") -> None:
+        self.model = model
+        self._client = self._build_client()
 
     @staticmethod
-    @lru_cache(maxsize=1)
-    def _load_pipeline() -> Any:
+    def _build_client():
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key or api_key == "your_key" or Groq is None:
+            return None
         try:
-            from transformers import pipeline
-
-            return pipeline(
-                "text-classification",
-                model="mrm8488/bert-tiny-finetuned-fake-news-detection",
-                top_k=None,
-            )
+            return Groq(api_key=api_key)
         except Exception:
             return None
 
@@ -65,36 +59,36 @@ class ContentAnalyzer:
         return ContentAnalysisResult(int(round(score)), round(confidence, 3), signals)
 
     def _model_score(self, text: str) -> float:
-        model = self._get_pipeline()
-        if model is None:
+        """LLM misinformation score 0-100 via Groq; lexical fallback on any error."""
+        if self._client is None:
             return self._lexical_score(text)
-
         try:
-            result = model(text[:512])
-            if isinstance(result, list) and result:
-                rows = result[0] if isinstance(result[0], list) else result
-                score = 0.0
-                for row in rows:
-                    label = str(row.get("label", "")).lower()
-                    value = float(row.get("score", 0.0))
-                    if any(token in label for token in ("fake", "misinfo", "false", "rumor", "contradict")):
-                        score = max(score, value * 100)
-                # LABEL_X format: LABEL_1 is the positive/fake class by convention
-                if score == 0.0:
-                    for row in rows:
-                        if str(row.get("label", "")).lower() == "label_1":
-                            score = float(row.get("score", 0.0)) * 100
-                            break
-                if score == 0.0 and rows:
-                    fallback_row = next(
-                        (row for row in rows if str(row.get("label", "")).lower() in {"fake", "false", "misinformation"}),
-                        rows[0],
-                    )
-                    score = float(fallback_row.get("score", 0.0)) * 100
-                return max(0.0, min(100.0, score))
+            response = self._client.chat.completions.create(
+                model=self.model,
+                temperature=0.1,
+                max_tokens=120,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a misinformation detection engine for Indian social media "
+                            "(English, Hindi, and Hinglish). Judge how likely a piece of text is "
+                            "coordinated misinformation, a manipulative viral forward, or a "
+                            "fabricated claim. Reply ONLY with strict JSON: "
+                            '{"misinformation_score": <integer 0-100>, "reason": "<short phrase>"}. '
+                            "0 = clearly benign/factual, 100 = almost certainly misinformation."
+                        ),
+                    },
+                    {"role": "user", "content": text[:2000]},
+                ],
+            )
+            content = response.choices[0].message.content or "{}"
+            parsed = json.loads(content)
+            score = float(parsed.get("misinformation_score", self._lexical_score(text)))
+            return max(0.0, min(100.0, score))
         except Exception:
-            pass
-        return self._lexical_score(text)
+            return self._lexical_score(text)
 
     @staticmethod
     def _lexical_score(text: str) -> float:

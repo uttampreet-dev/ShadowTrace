@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Allow up to 60s so a cold-starting free-tier backend still returns real data
+export const maxDuration = 60
+
 const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:8000'
 
 const MOCK_FEED = {
@@ -56,7 +59,7 @@ export async function GET() {
   try {
     const response = await fetch(`${BACKEND}/live-feed`, {
       next: { revalidate: 300 }, // cache 5 minutes
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(55000),
     })
     if (!response.ok) throw new Error('Backend unavailable')
     const data = await response.json()

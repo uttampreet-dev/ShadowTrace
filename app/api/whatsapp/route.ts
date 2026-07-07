@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Allow up to 60s so a cold-starting free-tier backend still returns real data
+export const maxDuration = 60
+
 const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:8000'
 
 const MOCK_RESULT = {
@@ -27,7 +30,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(55000),
     })
     if (!response.ok) throw new Error('Backend unavailable')
     return NextResponse.json(await response.json())
