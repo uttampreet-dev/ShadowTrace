@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: 'Overview',      href: '/dashboard' },
   { label: 'Network Graph', href: '/dashboard/network' },
   { label: 'Alert Feed',    href: '/dashboard/alerts' },
+  { label: 'WhatsApp Intel', href: '/dashboard/whatsapp' },
   { label: 'Agents',        href: '/dashboard/agents' },
   { label: 'Account Intel', href: '/dashboard/account-intel' },
   { label: 'Reports',       href: '/dashboard/reports' },
@@ -42,6 +43,12 @@ export function BottomTabBar() {
       <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M8 2C5.8 2 4 3.8 4 6v4l-1.5 1.5h11L12 10V6c0-2.2-1.8-4-4-4z" />
         <path d="M6.5 12c0 .8.7 1.5 1.5 1.5s1.5-.7 1.5-1.5" />
+      </svg>
+    ),
+    '/dashboard/whatsapp': (
+      <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M8 1.5A6.5 6.5 0 0 0 2.3 11L1.5 14.5 5 13.7A6.5 6.5 0 1 0 8 1.5z" />
+        <path d="M5.5 6.5c.5 2 2 3.5 4 4l1-1 1.5 1" />
       </svg>
     ),
     '/dashboard/agents': (

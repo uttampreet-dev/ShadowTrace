@@ -28,6 +28,10 @@ const QUICK_TESTS = [
     label: 'Test: Fake Review',
     text:  'WOW Amazing product!!! Bought TechPro X200 and it is BEST in world!! All family buy now. Very fast ship 5 stars. My neighbour also buy and love it. Price very good quality very good. 100% recommend everyone buy now!!',
   },
+  {
+    label: 'Test: WhatsApp',
+    text:  'FWD: Doctors confirm nimbu paani cures cancer. Government hiding this. Share karo!',
+  },
 ]
 
 function scoreColor(pct: number): string {

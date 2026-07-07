@@ -123,6 +123,53 @@ async def get_live_feed() -> dict[str, Any]:
     return payload
 
 
+# ── /whatsapp/analyze — WhatsApp forward misinformation analyzer ───────────────
+
+
+@router.post("/whatsapp/analyze")
+async def analyze_whatsapp_forward(request: dict) -> dict[str, Any]:
+    """
+    Analyze a WhatsApp forward for misinformation patterns.
+    Combines WhatsAppForwardAnalyzer + ContentAnalyzer for dual scoring.
+    """
+    from agents.whatsapp_analyzer import WhatsAppForwardAnalyzer
+
+    text = str(request.get("text", ""))
+    if not text or len(text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Text too short")
+
+    wa_result = WhatsAppForwardAnalyzer().analyze(text)
+
+    try:
+        content_result = content_analyzer.analyze(text)
+        content_score = content_result.misinformation_score
+    except Exception:
+        content_score = wa_result.misinformation_score
+
+    # Blend scores — WhatsApp patterns + content analysis. When no forward
+    # markers or misinfo patterns exist, trust the pattern score more: the
+    # tiny BERT model misfires on casual conversational text.
+    if wa_result.forward_signals or wa_result.is_forward:
+        final_score = int(wa_result.misinformation_score * 0.6 + content_score * 0.4)
+    else:
+        final_score = int(wa_result.misinformation_score * 0.85 + content_score * 0.15)
+    risk_level = "HIGH" if final_score > 70 else "MED" if final_score > 40 else "LOW"
+
+    return {
+        "is_forward": wa_result.is_forward,
+        "forward_depth": wa_result.forward_depth,
+        "misinformation_score": final_score,
+        "risk_level": risk_level,
+        "language_detected": wa_result.language_detected,
+        "red_flags": wa_result.red_flags,
+        "forward_signals": wa_result.forward_signals,
+        "claim_extracted": wa_result.claim_extracted,
+        "verdict": wa_result.verdict,
+        "content_score": content_score,
+        "wa_pattern_score": wa_result.misinformation_score,
+    }
+
+
 # ── /campaigns — primary source is Neo4j AuraDB; JSON files are the fallback ──
 # Node/edge output shape is identical either way so the frontend D3 graph
 # works unchanged.
