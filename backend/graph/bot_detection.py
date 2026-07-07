@@ -10,6 +10,29 @@ class BotScore:
     indicators: dict[str, float]
 
 
+def calculate_bot_scores_neo4j(campaign_id: str) -> list[dict[str, Any]]:
+    """Score every account in a campaign via Cypher and store it on the node.
+
+    Primary scoring path — runs entirely inside AuraDB and persists
+    a.bot_score back onto each Account node.
+    """
+    from db.neo4j_client import run_query
+
+    return run_query(
+        """
+        MATCH (a:Account)-[:PART_OF]->(c:Campaign {id: $campaign_id})
+        SET a.bot_score = (
+          CASE WHEN a.post_count > 50 THEN 0.25 ELSE 0 END +
+          CASE WHEN a.age_days < 30 THEN 0.20 ELSE 0 END +
+          CASE WHEN a.following > a.followers * 10 THEN 0.20 ELSE 0 END
+        )
+        RETURN a.handle AS handle, a.bot_score AS bot_score
+        ORDER BY a.bot_score DESC
+        """,
+        {"campaign_id": campaign_id},
+    )
+
+
 def calculate_bot_score(metadata: dict[str, Any], posting_frequency: float, connectivity: float) -> BotScore:
     """Estimate bot likelihood from metadata and graph behavior."""
 

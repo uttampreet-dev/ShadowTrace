@@ -71,10 +71,15 @@ def generate_alert(payload: ThreatClassifierRequest) -> ThreatClassifierResponse
     return ThreatClassifierResponse(**asdict(result))
 
 
-# ── /campaigns — not in teammate's spec but needed by the frontend D3 graph ───
-# Loads teammate's campaign JSON files and adapts node/edge format for D3.
+# ── /campaigns — primary source is Neo4j AuraDB; JSON files are the fallback ──
+# Node/edge output shape is identical either way so the frontend D3 graph
+# works unchanged.
+
+from db.neo4j_client import run_query
 
 _DATA_DIR = Path(__file__).parent.parent / "data"
+
+_PREFIX_MAP = {"origin": "ORI", "bot": "BOT", "amplifier": "AMP", "legitimate": "USR"}
 
 _CAMPAIGN_META = [
     {"id": "campaign-001", "name": "Operation Pulse",  "threat_level": "HIGH", "confidence": 0.92},
@@ -110,12 +115,11 @@ def _adapt(raw: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
         aid = p.get("author_id", "")
         post_count[aid] = post_count.get(aid, 0) + 1
 
-    prefix_map = {"origin": "ORI", "bot": "BOT", "amplifier": "AMP", "legitimate": "USR"}
     nodes = [
         {
             "id":        n["id"],
             "type":      _node_type(n.get("metadata", {})),
-            "label":     f"{prefix_map[_node_type(n.get('metadata', {}))]}-{n['id'].upper()}",
+            "label":     f"{_PREFIX_MAP[_node_type(n.get('metadata', {}))]}-{n['id'].upper()}",
             "accountId": f"@usr_{n['id']}",
             "posts":     post_count.get(n["id"], 0),
             "followers": n.get("metadata", {}).get("followers", 0),
@@ -149,13 +153,82 @@ def _load_campaigns() -> list[dict[str, Any]]:
     return result
 
 
+def _campaign_from_neo4j(campaign: dict[str, Any]) -> dict[str, Any]:
+    cid = campaign["id"]
+    accounts = run_query(
+        "MATCH (a:Account)-[:PART_OF]->(:Campaign {id: $id}) RETURN a ORDER BY a.id",
+        {"id": cid},
+    )
+    edges = run_query(
+        """
+        MATCH (a1:Account)-[r:INTERACTS]->(a2:Account)
+        WHERE a1.campaign_id = $id AND a2.campaign_id = $id
+        RETURN a1.id AS source, a2.id AS target, r.relation AS relation
+        """,
+        {"id": cid},
+    )
+    nodes = []
+    for row in accounts:
+        a = row["a"]
+        meta = {
+            "account_age_days": a.get("age_days", 365),
+            "followers":        a.get("followers", 0),
+            "following":        a.get("following", 0),
+            "verified":         a.get("verified", False),
+        }
+        node_type = _node_type(meta)
+        nodes.append(
+            {
+                "id":        a["id"],
+                "type":      node_type,
+                "label":     f"{_PREFIX_MAP[node_type]}-{a['id'].upper()}",
+                "accountId": a.get("handle", f"@usr_{a['id']}"),
+                "posts":     a.get("post_count", 0),
+                "followers": a.get("followers", 0),
+                "clusterId": a.get("cluster_id"),
+            }
+        )
+    return {
+        "id":            cid,
+        "name":          campaign.get("name", cid),
+        "threat_level":  campaign.get("threat_level", "MED"),
+        "confidence":    campaign.get("confidence", 0.5),
+        "account_count": len(nodes),
+        "start_time":    campaign.get("start_time", "2026-06-20T08:00:00Z"),
+        "narrative":     campaign.get("narrative", ""),
+        "nodes":         nodes,
+        "edges": [
+            {"source": e["source"], "target": e["target"], "weight": _edge_weight(e.get("relation") or "mention")}
+            for e in edges
+        ],
+        "data_source": "neo4j",
+    }
+
+
+def _campaigns_from_neo4j() -> list[dict[str, Any]]:
+    campaigns = run_query("MATCH (c:Campaign) RETURN c ORDER BY c.id")
+    return [_campaign_from_neo4j(row["c"]) for row in campaigns]
+
+
 @router.get("/campaigns")
 def list_campaigns() -> list[dict[str, Any]]:
+    try:
+        campaigns = _campaigns_from_neo4j()
+        if campaigns:
+            return campaigns
+    except Exception:
+        pass  # AuraDB unreachable — JSON fallback keeps the demo alive
     return _load_campaigns()
 
 
 @router.get("/campaigns/{campaign_id}")
 def get_campaign(campaign_id: str) -> dict[str, Any]:
+    try:
+        rows = run_query("MATCH (c:Campaign {id: $id}) RETURN c", {"id": campaign_id})
+        if rows:
+            return _campaign_from_neo4j(rows[0]["c"])
+    except Exception:
+        pass
     match = next((c for c in _load_campaigns() if c["id"] == campaign_id), None)
     if not match:
         raise HTTPException(status_code=404, detail="Campaign not found")
