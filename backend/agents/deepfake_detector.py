@@ -111,8 +111,10 @@ class DeepfakeDetector:
             except Exception as exc:
                 logger.info("AI-image model unavailable: %s", exc)
 
-            # Model verdict leads when available; forensics heuristics support it
-            if ai_generated_probability is not None:
+            # AI-generation and manual editing are separate questions: a
+            # confident AI flag raises the score, but "not AI-generated"
+            # must not veto the ELA/EXIF editing forensics
+            if ai_generated_probability is not None and ai_generated_probability >= 0.5:
                 manipulation_probability = round(
                     min(0.99, 0.6 * ai_generated_probability + 0.4 * heuristic_probability), 4
                 )
