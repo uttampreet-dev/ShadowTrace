@@ -50,3 +50,80 @@ class ThreatClassifierResponse(BaseModel):
     severity: str
     explanation: str
     structured_alert: dict[str, Any]
+
+
+class AccountIntelAnalyzeRequest(BaseModel):
+    handles: list[str] = Field(..., min_length=1)
+
+
+class TimelinePostModel(BaseModel):
+    timestamp: int
+    text_preview: str
+
+
+class AccountTimelineModel(BaseModel):
+    account: str
+    posts: list[TimelinePostModel]
+
+
+class TemporalCoordinationResponse(BaseModel):
+    score: int
+    confidence: float
+    flagged_pairs: int
+    median_delay_seconds: float
+    timeline: list[AccountTimelineModel]
+
+
+class LinguisticFingerprintProfileModel(BaseModel):
+    account: str
+    average_sentence_length: float
+    vocabulary_diversity: float
+    punctuation_density: float
+    emoji_frequency: float
+
+
+class LinguisticFingerprintResponse(BaseModel):
+    score: float
+    clusters: list[int]
+    accounts: list[str]
+    similarity_matrix: list[list[float]]
+    profiles: list[LinguisticFingerprintProfileModel]
+
+
+class AIOperationResponseSignal(BaseModel):
+    account: str
+    burstiness: float
+    perplexity: float
+    semantic_consistency: float
+    topic_drift: float
+
+
+class AIOperationResponse(BaseModel):
+    score: float
+    signals: list[AIOperationResponseSignal]
+    verdict: Literal["LIKELY_AI", "POSSIBLY_AI", "LIKELY_HUMAN"]
+
+
+class AccountIntelResponse(BaseModel):
+    temporal: TemporalCoordinationResponse
+    linguistic: LinguisticFingerprintResponse
+    ai_operation: AIOperationResponse
+
+
+class DeepfakeAnalyzeRequest(BaseModel):
+    image_url: str = Field(..., min_length=1)
+
+
+class DeepfakeAnalyzeResponse(BaseModel):
+    manipulation_probability: float
+    ela_image_base64: str
+    metadata_summary: dict[str, Any]
+
+
+class LanguageDetectRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+class LanguageDetectResponse(BaseModel):
+    language: str
+    confidence: float

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -11,26 +12,46 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from agents.ai_operation_detector import AIOperationDetector
+from agents.deepfake_detector import DeepfakeDetector
 from agents.campaign_detector import CampaignDetector
 from agents.content_analyzer import ContentAnalyzer
+from agents.linguistic_fingerprinter import LinguisticFingerprinter
 from agents.network_mapper import NetworkMapper
+from agents.sarvam_language_detector import SarvamLanguageDetector
+from agents.temporal_coordinator import TemporalCoordinator
 from agents.threat_classifier import ThreatClassifier
 from api.schemas import (
+    AIOperationResponse,
+    AccountIntelAnalyzeRequest,
+    AccountIntelResponse,
     AnalyzeNetworkRequest,
     AnalyzeNetworkResponse,
     AnalyzeTextRequest,
     AnalyzeTextResponse,
+    DeepfakeAnalyzeRequest,
+    DeepfakeAnalyzeResponse,
     DetectCampaignRequest,
     DetectCampaignResponse,
+    LanguageDetectRequest,
+    LanguageDetectResponse,
+    LinguisticFingerprintResponse,
     ThreatClassifierRequest,
     ThreatClassifierResponse,
+    TemporalCoordinationResponse,
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 content_analyzer = ContentAnalyzer()
 network_mapper = NetworkMapper()
 campaign_detector = CampaignDetector(content_analyzer=content_analyzer, network_mapper=network_mapper)
 threat_classifier = ThreatClassifier()
+temporal_coordinator = TemporalCoordinator()
+linguistic_fingerprinter = LinguisticFingerprinter()
+ai_operation_detector = AIOperationDetector()
+deepfake_detector = DeepfakeDetector()
+sarvam_language_detector = SarvamLanguageDetector()
 
 
 @router.get("/")
@@ -71,6 +92,47 @@ def detect_campaign(payload: DetectCampaignRequest) -> DetectCampaignResponse:
 def generate_alert(payload: ThreatClassifierRequest) -> ThreatClassifierResponse:
     result = threat_classifier.classify(payload.payload)
     return ThreatClassifierResponse(**asdict(result))
+
+
+@router.post("/account-intel/analyze", response_model=AccountIntelResponse)
+def analyze_account_intel(payload: AccountIntelAnalyzeRequest) -> AccountIntelResponse:
+    try:
+        temporal = temporal_coordinator.analyze(payload.handles)
+        linguistic = linguistic_fingerprinter.analyze(payload.handles)
+        ai_operation = ai_operation_detector.analyze(payload.handles)
+        return AccountIntelResponse(
+            temporal=TemporalCoordinationResponse(**asdict(temporal)),
+            linguistic=LinguisticFingerprintResponse(**asdict(linguistic)),
+            ai_operation=AIOperationResponse(**asdict(ai_operation)),
+        )
+    except Exception as exc:
+        logger.exception("Account intel analysis failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Account intelligence analysis failed") from exc
+
+
+@router.get("/account-intel/accounts/{handle}", response_model=AccountIntelResponse)
+def get_account_intel(handle: str) -> AccountIntelResponse:
+    return analyze_account_intel(AccountIntelAnalyzeRequest(handles=[handle]))
+
+
+@router.post("/deepfake/analyze", response_model=DeepfakeAnalyzeResponse)
+def analyze_deepfake(payload: DeepfakeAnalyzeRequest) -> DeepfakeAnalyzeResponse:
+    try:
+        result = deepfake_detector.analyze(payload.image_url)
+        return DeepfakeAnalyzeResponse(**asdict(result))
+    except Exception as exc:
+        logger.exception("Deepfake analysis failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Deepfake analysis failed") from exc
+
+
+@router.post("/language/detect", response_model=LanguageDetectResponse)
+def detect_language(payload: LanguageDetectRequest) -> LanguageDetectResponse:
+    try:
+        result = sarvam_language_detector.detect(payload.text)
+        return LanguageDetectResponse(**asdict(result))
+    except Exception as exc:
+        logger.exception("Language detection failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Language detection failed") from exc
 
 
 # ── /live-feed — real debunked claims from Indian fact-checker RSS feeds ───────
