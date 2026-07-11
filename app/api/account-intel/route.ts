@@ -86,9 +86,11 @@ interface BackendResponse {
       perplexity:           number
       semantic_consistency: number
       topic_drift:          number
+      post_count?:          number
     }[]
     verdict: 'LIKELY_AI' | 'POSSIBLY_AI' | 'LIKELY_HUMAN'
   }
+  sources?: Record<string, string>
 }
 
 // ─── Transform backend response → component shapes ────────────────────────────
@@ -100,13 +102,20 @@ function aiVerdict(score: number): 'LIKELY_AI' | 'POSSIBLY_AI' | 'LIKELY_HUMAN' 
 }
 
 // Mirrors AIOperationDetector._score_signal so per-account scores match the
-// backend's aggregate score
+// backend's aggregate score. Each component is 0-100 AI-evidence.
+function signalComponents(s: BackendResponse['ai_operation']['signals'][number]) {
+  return {
+    regularity:     Math.max(0, (1 - s.burstiness)) * 100,
+    lowPerplexity:  Math.max(0, Math.min(100, (150 - s.perplexity) / 1.5)),
+    consistency:    Math.min(100, s.semantic_consistency * 200),
+    lowDrift:       Math.max(0, (1 - s.topic_drift)) * 100,
+  }
+}
+
 function scoreSignal(s: BackendResponse['ai_operation']['signals'][number]): number {
-  const burstiness = Math.min(100, s.burstiness * 40)
-  const perplexity = Math.min(100, Math.max(0, (s.perplexity - 1) * 4.5))
-  const consistency = (1 - s.semantic_consistency) * 100
-  const drift = s.topic_drift * 100
-  return 0.25 * burstiness + 0.25 * perplexity + 0.25 * consistency + 0.25 * drift
+  if ((s.post_count ?? 0) < 3) return 25 // insufficient data — neutral
+  const c = signalComponents(s)
+  return 0.25 * c.regularity + 0.25 * c.lowPerplexity + 0.25 * c.consistency + 0.25 * c.lowDrift
 }
 
 function transform(backend: BackendResponse, handles: string[]): AccountIntelResult {
@@ -119,14 +128,16 @@ function transform(backend: BackendResponse, handles: string[]): AccountIntelRes
 
   const aiAccounts = backend.ai_operation.signals.map(signal => {
     const ai_score = Math.round(scoreSignal(signal))
+    const c = signalComponents(signal)
     return {
       handle:   signal.account,
       ai_score,
+      // Each bar is 0-100 AI-evidence for that dimension
       signals: {
-        burstiness:           Math.round(Math.min(100, signal.burstiness * 40)),
-        perplexity_score:     Math.round(Math.min(100, Math.max(0, (signal.perplexity - 1) * 4.5))),
-        semantic_consistency: Math.round(signal.semantic_consistency * 100),
-        topic_drift:          Math.round(signal.topic_drift * 100),
+        burstiness:           Math.round(c.regularity),
+        perplexity_score:     Math.round(c.lowPerplexity),
+        semantic_consistency: Math.round(c.consistency),
+        topic_drift:          Math.round(c.lowDrift),
       },
       verdict: aiVerdict(ai_score),
     }

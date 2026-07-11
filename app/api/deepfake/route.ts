@@ -29,6 +29,8 @@ interface BackendResponse {
   manipulation_probability: number
   ela_image_base64:         string
   metadata_summary:         Record<string, unknown>
+  ai_generated_probability?: number | null
+  ai_model_used?:            string | null
 }
 
 const EDITING_TOOLS = [
@@ -63,6 +65,15 @@ function deriveSignals(backend: BackendResponse, score: number): { signals: stri
     signals.unshift('High ELA response — compression inconsistencies suggest editing')
   } else if (score > 35) {
     signals.unshift('Moderate ELA response — possible localized editing')
+  }
+
+  if (typeof backend.ai_generated_probability === 'number' && backend.ai_model_used) {
+    const pct = Math.round(backend.ai_generated_probability * 100)
+    signals.unshift(
+      backend.ai_generated_probability >= 0.5
+        ? `AI-generation model: ${pct}% likely AI-generated (${backend.ai_model_used})`
+        : `AI-generation model: ${pct}% AI probability — likely camera-captured (${backend.ai_model_used})`,
+    )
   }
 
   return { signals, flags }

@@ -122,10 +122,22 @@ One-click JSON export of all campaign data, alerts, and network summaries.
 24-hour activity visualization across all active campaigns with peak detection markers.
 
 **Agent Status Monitor**
-Live status, tasks processed, load percentages, and pipeline latency for all 5 agents.
+Live status and real task counts for all 10 agents, streamed from the backend process.
 
 **Campaign Intelligence Reports**
 Per-campaign narrative summaries with accounts involved, duration, peak activity windows, confidence scores, and direct network visualization links.
+
+**WhatsApp Forward Analyzer**
+India-specific forward-chain detection (English/Hindi/Hinglish) blended with a Groq Llama 3.3 70B misinformation judgment, plus a one-click **5-agent investigation** that chains pattern analysis → LLM scoring → Sarvam language ID → live fact-check cross-reference → threat classification.
+
+**Account Intelligence — live internet accounts**
+Enter any real Bluesky handle (or seeded campaign accounts): posts are ingested live into Neo4j, then analyzed for temporal coordination (60s posting windows), stylometric fingerprint clusters (DBSCAN), and LLM-operation signals (bigram perplexity, burstiness, topic drift).
+
+**Image Forensics**
+Error Level Analysis + EXIF anomaly detection with rendered ELA heatmaps, optionally blended with a Hugging Face AI-image classifier for deepfake (AI-generation) detection.
+
+**Live Fact-Checker Feed**
+Real debunked claims ingested from Indian fact-checker RSS feeds (Alt News, BOOM, FactChecker.in, The Quint), each re-scored through the content pipeline.
 
 ---
 
@@ -133,21 +145,24 @@ Per-campaign narrative summaries with accounts involved, duration, peak activity
 
 ```
 DATA SOURCES
-Twitter/X (Nitter) · Telegram Channels · News Articles · WhatsApp Forwards
+Bluesky (live) · Fact-checker RSS (live) · WhatsApp Forwards · Image URLs · Neo4j graph
           │
           ▼
-DATA INGESTION PIPELINE
+DATA INGESTION → Neo4j AuraDB
           │
-    ┌─────┴────────────────────────────────────────┐
-    ▼          ▼           ▼            ▼           ▼
-Content    Deepfake    Network      Campaign    Threat
-Analyzer   Detector    Mapper       Detector    Classifier
-(BERT)     (CV)        (NetworkX)   (LangGraph) (Groq)
-    └─────┬────────────────────────────────────────┘
+    ┌─────┴──────────────────────────────────────────────────────────┐
+    ▼          ▼           ▼           ▼           ▼          ▼
+Content    Deepfake    Network     Campaign    Threat     WhatsApp
+Analyzer   Detector    Mapper      Detector    Classifier Analyzer
+(Groq 70B) (ELA+HF)    (Neo4j)     (LangGraph) (Groq 70B) (patterns+LLM)
+    ▼          ▼           ▼
+Temporal   Linguistic  AI-Operation      Sarvam Language Detector
+Coordinator Fingerprinter Detector       (Indian language ID)
+    └─────┬──────────────────────────────────────────────────────────┘
           │
           ▼
 MISSION CONTROL DASHBOARD
-Network Graph · Threat Score · Alert Feed · Evidence Export · Campaign Timeline
+Network Graph · Account Intel · Image Forensics · WhatsApp Intel · Live Feed · Alerts
 ```
 
 ---
@@ -168,10 +183,14 @@ Network Graph · Threat Score · Alert Feed · Evidence Export · Campaign Timel
 |---|---|
 | FastAPI + Uvicorn | Python API server wrapping all AI agents |
 | LangGraph | Multi-agent orchestration and state management |
-| HuggingFace Transformers | BERT model for content analysis |
-| SentenceTransformers | Semantic similarity for campaign detection |
-| NetworkX | Graph construction and community detection |
-| Groq LLaMA-3.3-70B | Threat classification and alert generation |
+| Groq LLaMA-3.3-70B | Content scoring, threat classification, alert generation |
+| Neo4j AuraDB | Persistent graph of accounts, posts, and campaigns |
+| scikit-learn | DBSCAN stylometric clustering |
+| Sarvam AI | Indian-language identification (text-lid) |
+| Pillow (ELA) | Error Level Analysis image forensics |
+| Hugging Face Inference | AI-generated-image classification (optional) |
+| Bluesky public API | Live account/post ingestion |
+| NetworkX | Graph fallback and community detection |
 
 ### Infrastructure
 | Tool | Purpose |
@@ -257,13 +276,19 @@ Open `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/` | Health check + agent statuses |
-| `GET` | `/campaigns` | All campaigns with node/edge data |
+| `GET` | `/` | Health check |
+| `GET` | `/campaigns` | All campaigns with node/edge data (Neo4j) |
 | `GET` | `/campaigns/{id}` | Single campaign |
-| `GET` | `/campaigns/{id}/network` | Campaign + NetworkX graph stats |
-| `POST` | `/analyze` | Run ContentAnalyzer on text |
-| `POST` | `/alert` | Generate threat assessment |
-| `GET` | `/agents` | Live status of all 5 agents |
+| `POST` | `/analyze-text` | Groq LLM misinformation scoring |
+| `POST` | `/detect-campaign` | LangGraph campaign-detection pipeline |
+| `POST` | `/generate-alert` | Groq threat classification |
+| `POST` | `/whatsapp/analyze` | WhatsApp forward analysis (patterns + LLM) |
+| `POST` | `/investigate` | Full 5-agent investigation of one message |
+| `POST` | `/account-intel/analyze` | Temporal + stylometric + AI-operation analysis (live Bluesky ingestion) |
+| `POST` | `/deepfake/analyze` | ELA forensics + optional AI-image classifier |
+| `POST` | `/language/detect` | Sarvam Indian-language identification |
+| `GET` | `/live-feed` | Live debunked claims from fact-checker RSS |
+| `GET` | `/agents/status` | Real per-agent task counts from this process |
 
 ```bash
 curl -X POST http://localhost:8000/analyze \
@@ -327,13 +352,12 @@ ShadowTrace/
 ## Future Scope
 
 - **Live Telegram Ingestion** — Telethon connector to monitor public channels in real time, feeding directly into the agent pipeline
-- **WhatsApp Forward Analysis** — analyze forwarded message chains and detect synchronized broadcast patterns across unrelated groups
-- **DeepfakeDetector — Live Activation** — agent is implemented and integrated, activates once live media ingestion connectors are online
-- **Twitter/X Live Connector** — Nitter-based real-time ingestion replacing synthetic datasets with live account interaction data
-- **Production Graph Database (Neo4j)** — migrate from in-memory NetworkX to Neo4j for persistent, queryable network storage at scale
+- **Twitter/X Connector** — official API ingestion alongside the live Bluesky connector (Nitter is dead; the `NITTER_BASE_URL` fallback remains configurable)
+- **Mastodon Ingestion** — extend the live account connector to the fediverse
 - **Real-Time WebSocket Alerts** — sub-second push from agent detection to analyst dashboard, replacing the current polling model
 - **Journalist & Government API** — public REST API for newsrooms and government bodies to submit content and receive structured threat reports
 - **Exportable Evidence Packages** — PDF + JSON bundles per campaign formatted for submission to platform trust-and-safety teams
+- **Fine-tuned deepfake model** — replace the hosted AI-image classifier with a purpose-trained detector for Indian misinformation imagery
 
 ---
 

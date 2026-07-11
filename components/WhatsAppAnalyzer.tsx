@@ -18,12 +18,41 @@ interface WhatsAppResult {
   wa_pattern_score:     number
 }
 
+interface InvestigationStep {
+  agent:       string
+  duration_ms: number
+  summary:     string
+}
+
+interface InvestigationResult {
+  steps:                InvestigationStep[]
+  misinformation_score: number
+  risk_level:           'HIGH' | 'MED' | 'LOW'
+  language:             string
+  claim_extracted:      string
+  red_flags:            string[]
+  fact_check_matches:   { title: string; source: string; url: string; matched_terms: string[] }[]
+  threat_alert: {
+    threat_type: string
+    severity:    string
+    explanation: string
+  }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FONT: React.CSSProperties = {
   fontFamily: 'var(--font-jetbrains-mono, "Fira Code", monospace)',
 }
 const BORDER = '1px solid #1E2D4A'
+
+const AGENT_COLORS: Record<string, string> = {
+  WhatsAppAnalyzer:       '#22C55E',
+  ContentAnalyzer:        '#00D4AA',
+  SarvamLanguageDetector: '#FB923C',
+  FactCheckCrossRef:      '#3B82F6',
+  ThreatClassifier:       '#EF4444',
+}
 
 const RISK_COLOR: Record<string, string> = {
   HIGH: '#EF4444',
@@ -74,6 +103,8 @@ export default function WhatsAppAnalyzer() {
   const [loading, setLoading] = useState(false)
   const [result,  setResult]  = useState<WhatsAppResult | null>(null)
   const [error,   setError]   = useState<string | null>(null)
+  const [investigation,  setInvestigation]  = useState<InvestigationResult | null>(null)
+  const [investigating,  setInvestigating]  = useState(false)
 
   async function analyze() {
     if (text.trim().length < 10 || loading) return
@@ -92,6 +123,25 @@ export default function WhatsAppAnalyzer() {
       setError('Analysis failed. Check API configuration.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function runInvestigation() {
+    if (text.trim().length < 10 || investigating) return
+    setInvestigating(true)
+    setInvestigation(null)
+    try {
+      const res = await fetch('/api/investigate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text }),
+      })
+      if (!res.ok) throw new Error('request failed')
+      setInvestigation((await res.json()) as InvestigationResult)
+    } catch {
+      setError('Investigation failed — backend unreachable.')
+    } finally {
+      setInvestigating(false)
     }
   }
 
@@ -289,6 +339,119 @@ export default function WhatsAppAnalyzer() {
                 {result.verdict}
               </span>
             </div>
+
+            {/* Row 6 — full multi-agent investigation */}
+            <button
+              onClick={runInvestigation}
+              disabled={investigating}
+              style={{
+                ...FONT,
+                width:           '100%',
+                fontSize:        '12px',
+                fontWeight:      700,
+                letterSpacing:   '0.12em',
+                color:           '#7C3AED',
+                backgroundColor: 'transparent',
+                border:          '1px solid #7C3AED',
+                padding:         '12px',
+                cursor:          investigating ? 'wait' : 'pointer',
+              }}
+            >
+              {investigating ? 'RUNNING 5-AGENT INVESTIGATION...' : '⛶ RUN FULL INVESTIGATION — 5 AGENTS'}
+            </button>
+
+            {investigation && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Agent pipeline timeline */}
+                <div style={{ border: BORDER, backgroundColor: '#111D35', padding: '14px' }}>
+                  <div style={{ ...FONT, fontSize: '10px', letterSpacing: '0.12em', color: '#4A5568', marginBottom: '10px' }}>
+                    AGENT PIPELINE — {investigation.steps.length} AGENTS EXECUTED
+                  </div>
+                  {investigation.steps.map((step, i) => (
+                    <div
+                      key={`${step.agent}-${i}`}
+                      style={{
+                        display:      'flex',
+                        alignItems:   'baseline',
+                        gap:          '10px',
+                        padding:      '7px 0',
+                        borderBottom: i < investigation.steps.length - 1 ? BORDER : 'none',
+                      }}
+                    >
+                      <span style={{ ...FONT, fontSize: '10px', color: '#4A5568', flexShrink: 0, width: '18px' }}>
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span
+                        style={{
+                          ...FONT,
+                          fontSize:   '11px',
+                          fontWeight: 700,
+                          color:      AGENT_COLORS[step.agent] ?? '#8B9AB5',
+                          flexShrink: 0,
+                          width:      '190px',
+                        }}
+                      >
+                        {step.agent}
+                      </span>
+                      <span style={{ ...FONT, fontSize: '11px', color: '#E2E8F0', flex: 1 }}>
+                        {step.summary}
+                      </span>
+                      <span style={{ ...FONT, fontSize: '10px', color: '#4A5568', flexShrink: 0 }}>
+                        {step.duration_ms}ms
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Fact-check matches */}
+                {investigation.fact_check_matches.length > 0 && (
+                  <div style={{ border: '1px solid #3B82F6', backgroundColor: '#111D35', padding: '14px' }}>
+                    <div style={{ ...FONT, fontSize: '10px', letterSpacing: '0.12em', color: '#3B82F6', marginBottom: '10px' }}>
+                      ⚑ MATCHED DEBUNKED CLAIMS — LIVE FACT-CHECKER FEED
+                    </div>
+                    {investigation.fact_check_matches.map(match => (
+                      <div key={match.title} style={{ padding: '6px 0' }}>
+                        <a
+                          href={match.url || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ ...FONT, fontSize: '12px', color: '#E2E8F0', textDecoration: 'underline' }}
+                        >
+                          {match.title}
+                        </a>
+                        <div style={{ ...FONT, fontSize: '10px', color: '#4A5568', marginTop: '3px' }}>
+                          {match.source} · matched: {match.matched_terms.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Threat alert */}
+                <div
+                  style={{
+                    border:          '1px solid #EF4444',
+                    backgroundColor: '#EF444426',
+                    padding:         '14px 16px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '6px' }}>
+                    <span style={{ ...FONT, fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em', color: '#EF4444' }}>
+                      THREAT ALERT
+                    </span>
+                    <span style={{ ...FONT, fontSize: '12px', fontWeight: 700, color: '#E2E8F0' }}>
+                      {investigation.threat_alert.threat_type}
+                    </span>
+                    <span style={{ ...FONT, fontSize: '10px', letterSpacing: '0.1em', color: '#EF4444' }}>
+                      SEVERITY: {investigation.threat_alert.severity.toUpperCase()}
+                    </span>
+                  </div>
+                  <div style={{ ...FONT, fontSize: '11px', color: '#8B9AB5', lineHeight: 1.6 }}>
+                    {investigation.threat_alert.explanation}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

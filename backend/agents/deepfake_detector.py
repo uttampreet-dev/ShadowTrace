@@ -19,17 +19,19 @@ class DeepfakeDetectionResult:
     manipulation_probability: float
     ela_image_base64: str
     metadata_summary: dict[str, Any]
+    ai_generated_probability: float | None = None
+    ai_model_used: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _download_image(image_url: str) -> Image.Image:
+def _download_image(image_url: str) -> tuple[Image.Image, bytes]:
     # Wikimedia and most CDNs reject the default python-requests user agent
     headers = {"User-Agent": "ShadowTrace/1.0 (image forensics; contact: admin@shadowtrace.app)"}
     response = requests.get(image_url, headers=headers, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
-    return Image.open(io.BytesIO(response.content)).convert("RGB")
+    return Image.open(io.BytesIO(response.content)).convert("RGB"), response.content
 
 
 def _read_exif_metadata(image: Image.Image) -> dict[str, Any]:
@@ -88,13 +90,38 @@ def _manipulation_probability(exif_summary: dict[str, Any], ela_max_diff: float)
 class DeepfakeDetector:
     def analyze(self, image_url: str) -> DeepfakeDetectionResult:
         try:
-            image = _download_image(image_url)
+            image, raw_bytes = _download_image(image_url)
             metadata_summary = _read_exif_metadata(image)
             ela_image, ela_max_diff = _compute_ela(image)
+            heuristic_probability = _manipulation_probability(metadata_summary, ela_max_diff)
+
+            # Trained AI-generation classifier (needs HF_API_KEY; None without)
+            ai_generated_probability: float | None = None
+            ai_model_used: str | None = None
+            try:
+                from agents.ai_image_detector import detect_ai_image
+
+                model_result = detect_ai_image(raw_bytes)
+                if model_result is not None:
+                    ai_generated_probability = model_result["ai_probability"]
+                    ai_model_used = model_result["model"]
+            except Exception as exc:
+                logger.info("AI-image model unavailable: %s", exc)
+
+            # Model verdict leads when available; forensics heuristics support it
+            if ai_generated_probability is not None:
+                manipulation_probability = round(
+                    min(0.99, 0.6 * ai_generated_probability + 0.4 * heuristic_probability), 4
+                )
+            else:
+                manipulation_probability = heuristic_probability
+
             return DeepfakeDetectionResult(
-                manipulation_probability=_manipulation_probability(metadata_summary, ela_max_diff),
+                manipulation_probability=manipulation_probability,
                 ela_image_base64=_ela_to_base64(ela_image),
                 metadata_summary=metadata_summary,
+                ai_generated_probability=ai_generated_probability,
+                ai_model_used=ai_model_used,
             )
         except Exception as exc:
             logger.exception("Deepfake analysis failed for %s: %s", image_url, exc)

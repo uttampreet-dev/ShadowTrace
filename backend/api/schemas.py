@@ -96,6 +96,7 @@ class AIOperationResponseSignal(BaseModel):
     perplexity: float
     semantic_consistency: float
     topic_drift: float
+    post_count: int = 0
 
 
 class AIOperationResponse(BaseModel):
@@ -108,6 +109,9 @@ class AccountIntelResponse(BaseModel):
     temporal: TemporalCoordinationResponse
     linguistic: LinguisticFingerprintResponse
     ai_operation: AIOperationResponse
+    # Per-handle data provenance: "graph" (seeded/previously ingested),
+    # "bluesky" (live-fetched this request), or "none"
+    sources: dict[str, str] = {}
 
 
 class DeepfakeAnalyzeRequest(BaseModel):
@@ -118,6 +122,8 @@ class DeepfakeAnalyzeResponse(BaseModel):
     manipulation_probability: float
     ela_image_base64: str
     metadata_summary: dict[str, Any]
+    ai_generated_probability: float | None = None
+    ai_model_used: str | None = None
 
 
 class LanguageDetectRequest(BaseModel):

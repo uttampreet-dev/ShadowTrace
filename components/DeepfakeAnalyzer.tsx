@@ -32,7 +32,7 @@ const VERDICT_META: Record<DeepfakeVerdict, { label: string; color: string }> = 
   ANALYSIS_FAILED:      { label: 'ANALYSIS FAILED',      color: '#4A5568' },
 }
 
-const HIGH_SEVERITY_HINTS = ['High ELA', 'Edited with']
+const HIGH_SEVERITY_HINTS = ['High ELA', 'Edited with', 'likely AI-generated']
 
 function scoreColor(score: number): string {
   if (score < 40) return '#22C55E'

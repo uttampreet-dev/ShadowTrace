@@ -135,9 +135,17 @@ class WhatsAppForwardAnalyzer:
         else:
             risk_level = "LOW"
 
-        # Extract core claim (first substantial sentence or first 100 chars)
+        # Extract core claim (first substantial sentence or first 100 chars);
+        # skip forward-chain boilerplate like "Forwarded as received"
         sentences = re.split(r"[.!?।\n]", text.strip())
-        claim = next((s.strip() for s in sentences if len(s.strip()) > 20), text[:100])
+        claim = next(
+            (
+                s.strip() for s in sentences
+                if len(s.strip()) > 20
+                and not any(re.search(p, s, re.IGNORECASE) for p in self.FORWARD_PATTERNS)
+            ),
+            next((s.strip() for s in sentences if len(s.strip()) > 20), text[:100]),
+        )
 
         # Generate verdict
         if score > 70:

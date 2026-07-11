@@ -20,46 +20,55 @@ interface Agent {
   lastActive:  string
 }
 
+interface LiveAgentStat {
+  name:                 string
+  status:               string
+  tasks:                number
+  seconds_since_active: number | null
+}
+
+// Fallback roster — real stats from /api/agents overlay these when the
+// backend is reachable
 const AGENTS: Agent[] = [
   {
     number:      '01',
     name:        'ContentAnalyzer',
     color:       '#00D4AA',
     status:      'ONLINE',
-    description: 'NLP model analyzing content authenticity using fact-check databases and semantic similarity scoring.',
-    tasks:       1847,
-    load:        73,
-    lastActive:  'Just now',
+    description: 'Groq Llama 3.3 70B judging content authenticity, blended with keyword and structure signals.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
   },
   {
     number:      '02',
     name:        'DeepfakeDetector',
     color:       '#7C3AED',
     status:      'ONLINE',
-    description: 'ELA forensics + EXIF metadata analysis. Detects image manipulation in misinformation campaigns.',
-    tasks:       203,
-    load:        12,
-    lastActive:  '5m ago',
+    description: 'ELA forensics + EXIF metadata analysis + AI-image classifier. Detects manipulated and AI-generated media.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
   },
   {
     number:      '03',
     name:        'NetworkMapper',
     color:       '#F59E0B',
     status:      'ONLINE',
-    description: 'Graph algorithm mapping account interaction networks and detecting bot behavior patterns.',
-    tasks:       892,
-    load:        45,
-    lastActive:  'Just now',
+    description: 'Neo4j graph queries mapping account interaction networks and detecting bot behavior patterns.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
   },
   {
     number:      '04',
     name:        'CampaignDetector',
     color:       '#3B82F6',
     status:      'ONLINE',
-    description: 'Community detection identifying coordinated narrative bursts across account clusters.',
-    tasks:       445,
-    load:        28,
-    lastActive:  '3m ago',
+    description: 'LangGraph pipeline chaining content + network analysis to flag coordinated narrative bursts.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
   },
   {
     number:      '05',
@@ -67,11 +76,82 @@ const AGENTS: Agent[] = [
     color:       '#EF4444',
     status:      'ONLINE',
     description: 'Scoring engine classifying campaigns: organic vs coordinated vs state-level operations.',
-    tasks:       1247,
-    load:        61,
-    lastActive:  'Just now',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
+  },
+  {
+    number:      '06',
+    name:        'WhatsAppAnalyzer',
+    color:       '#22C55E',
+    status:      'ONLINE',
+    description: 'Forward-chain pattern detection for Indian WhatsApp misinformation: Hindi, Hinglish, and English.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
+  },
+  {
+    number:      '07',
+    name:        'TemporalCoordinator',
+    color:       '#06B6D4',
+    status:      'ONLINE',
+    description: 'Cross-account posting-time correlation. Flags synchronized posting inside 60-second windows.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
+  },
+  {
+    number:      '08',
+    name:        'LinguisticFingerprinter',
+    color:       '#EC4899',
+    status:      'ONLINE',
+    description: 'Stylometric DBSCAN clustering — sentence length, vocabulary, punctuation, emoji rates per account.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
+  },
+  {
+    number:      '09',
+    name:        'AIOperationDetector',
+    color:       '#A78BFA',
+    status:      'ONLINE',
+    description: 'Bigram perplexity, burstiness, and topic-drift analysis separating LLM-run accounts from humans.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
+  },
+  {
+    number:      '10',
+    name:        'SarvamLanguageDetector',
+    color:       '#FB923C',
+    status:      'ONLINE',
+    description: 'Sarvam AI language identification tuned for 10+ Indian languages and code-mixed text.',
+    tasks:       0,
+    load:        0,
+    lastActive:  '—',
   },
 ]
+
+function formatLastActive(seconds: number | null): string {
+  if (seconds === null) return '—'
+  if (seconds < 60) return 'Just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  return `${Math.floor(seconds / 3600)}h ago`
+}
+
+function mergeLiveStats(base: Agent[], live: LiveAgentStat[]): Agent[] {
+  return base.map(agent => {
+    const stat = live.find(s => s.name === agent.name)
+    if (!stat) return agent
+    return {
+      ...agent,
+      tasks:      stat.tasks,
+      status:     stat.tasks > 0 ? 'ONLINE' : 'STANDBY',
+      load:       stat.tasks > 0 ? Math.min(95, 15 + stat.tasks * 8) : 0,
+      lastActive: formatLastActive(stat.seconds_since_active),
+    }
+  })
+}
 
 // ─── Per-card component (needs hooks, so must be a real component) ────────────
 
@@ -81,6 +161,7 @@ function AgentCard({ agent, idx }: { agent: Agent; idx: number }) {
 
   // Count-up animation
   useEffect(() => {
+    if (agent.tasks === 0) { setCount(0); return }
     const duration = 1000 + idx * 80
     const step = agent.tasks / (duration / 16)
     let cur = 0
@@ -212,10 +293,10 @@ function AgentCard({ agent, idx }: { agent: Agent; idx: number }) {
 
 // ─── System summary strip ─────────────────────────────────────────────────────
 
-function SystemStrip() {
-  const online  = AGENTS.filter(a => a.status === 'ONLINE').length
-  const total   = AGENTS.length
-  const totalTasks = AGENTS.reduce((s, a) => s + a.tasks, 0)
+function SystemStrip({ agents, live }: { agents: Agent[]; live: boolean }) {
+  const online  = agents.filter(a => a.status === 'ONLINE').length
+  const total   = agents.length
+  const totalTasks = agents.reduce((s, a) => s + a.tasks, 0)
 
   return (
     <div
@@ -226,10 +307,10 @@ function SystemStrip() {
       }}
     >
       {[
-        { label: 'AGENTS ONLINE',    value: `${online} / ${total}`,             valueColor: '#22C55E' },
-        { label: 'TOTAL TASKS',      value: totalTasks.toLocaleString(),         valueColor: '#E2E8F0' },
-        { label: 'PIPELINE LATENCY', value: '47ms',                             valueColor: '#E2E8F0' },
-        { label: 'SYSTEM STATUS',    value: 'NOMINAL',                          valueColor: '#22C55E' },
+        { label: 'AGENTS ONLINE',       value: `${online} / ${total}`,      valueColor: '#22C55E' },
+        { label: 'TASKS THIS SESSION',  value: totalTasks.toLocaleString(), valueColor: '#E2E8F0' },
+        { label: 'STATS SOURCE',        value: live ? 'LIVE' : 'OFFLINE',   valueColor: live ? '#22C55E' : '#F59E0B' },
+        { label: 'SYSTEM STATUS',       value: 'NOMINAL',                   valueColor: '#22C55E' },
       ].map((cell, i) => (
         <div
           key={cell.label}
@@ -253,11 +334,34 @@ function SystemStrip() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
+  const [agents, setAgents] = useState<Agent[]>(AGENTS)
+  const [live,   setLive]   = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const res = await fetch('/api/agents')
+        if (!res.ok) return
+        const stats = (await res.json()) as LiveAgentStat[]
+        if (!cancelled && Array.isArray(stats)) {
+          setAgents(mergeLiveStats(AGENTS, stats))
+          setLive(true)
+        }
+      } catch {
+        // backend unreachable — fallback roster stays
+      }
+    }
+    load()
+    const timer = setInterval(load, 30_000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [])
+
   return (
     <div style={{ borderTop: BORDER }}>
 
       {/* ── Summary strip ─────────────────────────────────────────────────── */}
-      <SystemStrip />
+      <SystemStrip agents={agents} live={live} />
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
       <div style={{ padding: '24px 24px 0' }}>
@@ -265,7 +369,7 @@ export default function AgentsPage() {
           Agent Intelligence Network
         </div>
         <div style={{ ...FONT, fontSize: '11px', color: '#4A5568' }}>
-          5 specialized AI agents operating in parallel
+          {agents.length} specialized AI agents operating in parallel — task counts are live from the backend
         </div>
       </div>
 
@@ -278,17 +382,9 @@ export default function AgentsPage() {
           padding:               '20px 24px 24px',
         }}
       >
-        {/* First 4 cards — fill the 2-col grid */}
-        {AGENTS.slice(0, 4).map((agent, i) => (
+        {agents.map((agent, i) => (
           <AgentCard key={agent.number} agent={agent} idx={i} />
         ))}
-
-        {/* 5th card — centered, matching single-column width */}
-        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: 'calc(50% - 8px)' }}>
-            <AgentCard agent={AGENTS[4]} idx={4} />
-          </div>
-        </div>
       </div>
 
     </div>

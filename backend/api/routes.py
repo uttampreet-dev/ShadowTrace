@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from agents.agent_stats import record as record_agent
+from agents.agent_stats import snapshot as agent_stats_snapshot
 from agents.ai_operation_detector import AIOperationDetector
 from agents.deepfake_detector import DeepfakeDetector
 from agents.campaign_detector import CampaignDetector
@@ -61,12 +63,14 @@ def root() -> dict[str, str]:
 @router.post("/analyze-text", response_model=AnalyzeTextResponse)
 def analyze_text(payload: AnalyzeTextRequest) -> AnalyzeTextResponse:
     result = content_analyzer.analyze(payload.text)
+    record_agent("ContentAnalyzer")
     return AnalyzeTextResponse(**asdict(result))
 
 
 @router.post("/analyze-network", response_model=AnalyzeNetworkResponse)
 def analyze_network(payload: AnalyzeNetworkRequest) -> AnalyzeNetworkResponse:
     result = network_mapper.analyze(payload.campaign)
+    record_agent("NetworkMapper")
     return AnalyzeNetworkResponse(
         nodes=result.nodes,
         edges=result.edges,
@@ -80,25 +84,42 @@ def analyze_network(payload: AnalyzeNetworkRequest) -> AnalyzeNetworkResponse:
 @router.post("/detect-campaign", response_model=DetectCampaignResponse)
 def detect_campaign(payload: DetectCampaignRequest) -> DetectCampaignResponse:
     result = campaign_detector.detect(payload.campaign)
+    record_agent("CampaignDetector")
+    record_agent("ContentAnalyzer")
+    record_agent("NetworkMapper")
     return DetectCampaignResponse(**asdict(result))
 
 
 @router.post("/generate-alert", response_model=ThreatClassifierResponse)
 def generate_alert(payload: ThreatClassifierRequest) -> ThreatClassifierResponse:
     result = threat_classifier.classify(payload.payload)
+    record_agent("ThreatClassifier")
     return ThreatClassifierResponse(**asdict(result))
 
 
 @router.post("/account-intel/analyze", response_model=AccountIntelResponse)
 def analyze_account_intel(payload: AccountIntelAnalyzeRequest) -> AccountIntelResponse:
+    # Live ingestion: handles unknown to the graph are fetched from the
+    # Bluesky public API and merged into Neo4j before the agents run
+    try:
+        from agents.bluesky_ingestion import ensure_account_data
+
+        sources = {handle: ensure_account_data(handle) for handle in payload.handles}
+    except Exception as exc:
+        logger.warning("Live ingestion unavailable: %s", exc)
+        sources = {}
     try:
         temporal = TemporalCoordinator().analyze(payload.handles)
         linguistic = LinguisticFingerprinter().analyze(payload.handles)
         ai_operation = AIOperationDetector().analyze(payload.handles)
+        record_agent("TemporalCoordinator")
+        record_agent("LinguisticFingerprinter")
+        record_agent("AIOperationDetector")
         return AccountIntelResponse(
             temporal=TemporalCoordinationResponse(**asdict(temporal)),
             linguistic=LinguisticFingerprintResponse(**asdict(linguistic)),
             ai_operation=AIOperationResponse(**asdict(ai_operation)),
+            sources=sources,
         )
     except Exception as exc:
         logger.exception("Account intel analysis failed: %s", exc)
@@ -114,6 +135,7 @@ def get_account_intel(handle: str) -> AccountIntelResponse:
 def analyze_deepfake(payload: DeepfakeAnalyzeRequest) -> DeepfakeAnalyzeResponse:
     try:
         result = DeepfakeDetector().analyze(payload.image_url)
+        record_agent("DeepfakeDetector")
         return DeepfakeAnalyzeResponse(**asdict(result))
     except Exception as exc:
         logger.exception("Deepfake analysis failed: %s", exc)
@@ -124,6 +146,7 @@ def analyze_deepfake(payload: DeepfakeAnalyzeRequest) -> DeepfakeAnalyzeResponse
 def detect_language(payload: LanguageDetectRequest) -> LanguageDetectResponse:
     try:
         result = SarvamLanguageDetector().detect(payload.text)
+        record_agent("SarvamLanguageDetector")
         return LanguageDetectResponse(**asdict(result))
     except Exception as exc:
         logger.exception("Language detection failed: %s", exc)
@@ -196,21 +219,36 @@ async def analyze_whatsapp_forward(request: dict) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Text too short")
 
     wa_result = WhatsAppForwardAnalyzer().analyze(text)
+    record_agent("WhatsAppAnalyzer")
 
     try:
         content_result = content_analyzer.analyze(text)
         content_score = content_result.misinformation_score
+        record_agent("ContentAnalyzer")
     except Exception:
         content_score = wa_result.misinformation_score
 
-    # Blend scores — WhatsApp patterns + content analysis. When no forward
-    # markers or misinfo patterns exist, trust the pattern score more: the
-    # tiny BERT model misfires on casual conversational text.
+    # Blend scores — WhatsApp patterns + content analysis. The content signal
+    # is a Groq Llama 3.3 70B judgment, so it carries the most weight when
+    # forward markers exist; patterns lead on casual conversational text.
     if wa_result.forward_signals or wa_result.is_forward:
-        final_score = int(wa_result.misinformation_score * 0.6 + content_score * 0.4)
+        final_score = int(wa_result.misinformation_score * 0.35 + content_score * 0.65)
+        # A confident LLM flag on forwarded content is a high-risk combination
+        if content_score >= 80:
+            final_score = max(final_score, 75)
     else:
-        final_score = int(wa_result.misinformation_score * 0.85 + content_score * 0.15)
+        final_score = int(wa_result.misinformation_score * 0.6 + content_score * 0.4)
+    final_score = min(final_score, 97)
     risk_level = "HIGH" if final_score > 70 else "MED" if final_score > 40 else "LOW"
+
+    # Verdict must reflect the combined score, not the pattern score alone
+    flag_count = len(wa_result.red_flags)
+    if risk_level == "HIGH":
+        verdict = f"High probability of misinformation. {flag_count} red flags detected." if flag_count else "High probability of misinformation — AI content analysis flagged this claim."
+    elif risk_level == "MED":
+        verdict = f"Suspicious content. {flag_count} warning signals detected." if flag_count else "Suspicious content — AI content analysis raised concerns."
+    else:
+        verdict = "Low misinformation indicators. Content appears relatively benign."
 
     return {
         "is_forward": wa_result.is_forward,
@@ -221,7 +259,7 @@ async def analyze_whatsapp_forward(request: dict) -> dict[str, Any]:
         "red_flags": wa_result.red_flags,
         "forward_signals": wa_result.forward_signals,
         "claim_extracted": wa_result.claim_extracted,
-        "verdict": wa_result.verdict,
+        "verdict": verdict,
         "content_score": content_score,
         "wa_pattern_score": wa_result.misinformation_score,
     }
@@ -389,3 +427,152 @@ def get_campaign(campaign_id: str) -> dict[str, Any]:
     if not match:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return match
+
+
+# ── /agents/status — real per-agent activity from this process ─────────────────
+
+
+@router.get("/agents/status")
+def get_agent_status() -> list[dict[str, Any]]:
+    return agent_stats_snapshot()
+
+
+# ── /investigate — full multi-agent pipeline on a single piece of content ──────
+
+
+def _fact_check_matches(claim: str, text: str) -> list[dict[str, Any]]:
+    """Cross-reference the claim against the live fact-checker feed by token overlap."""
+    from agents.fact_checker_ingestion import fetch_live_claims
+
+    stop = {"this", "that", "with", "have", "will", "from", "your", "before", "after", "been", "were", "share"}
+    tokens = {
+        w for w in (claim + " " + text).lower().split()
+        if len(w) > 3 and w.isalpha() and w not in stop
+    }
+    if not tokens:
+        return []
+    try:
+        claims = fetch_live_claims()
+    except Exception:
+        return []
+
+    scored = []
+    for item in claims:
+        item_tokens = {
+            w for w in f"{item.get('title', '')} {item.get('summary', '')}".lower().split()
+            if len(w) > 3 and w.isalpha()
+        }
+        overlap = tokens & item_tokens
+        if len(overlap) >= 3:
+            scored.append(
+                {
+                    "title": item.get("title", ""),
+                    "source": item.get("source", item.get("checker", "")),
+                    "url": item.get("url", item.get("link", "")),
+                    "matched_terms": sorted(overlap)[:6],
+                    "overlap": len(overlap),
+                }
+            )
+    scored.sort(key=lambda m: -m["overlap"])
+    return scored[:3]
+
+
+@router.post("/investigate")
+async def investigate(request: dict) -> dict[str, Any]:
+    """
+    Chain every relevant agent over one piece of content:
+    pattern analysis → LLM content scoring → language ID →
+    fact-check cross-reference → threat classification.
+    """
+    from agents.whatsapp_analyzer import WhatsAppForwardAnalyzer
+
+    text = str(request.get("text", "")).strip()
+    if len(text) < 10:
+        raise HTTPException(status_code=400, detail="Text too short")
+
+    steps: list[dict[str, Any]] = []
+
+    def run_step(agent: str, summary_fn, work_fn) -> Any:
+        started = time.time()
+        result = work_fn()
+        record_agent(agent)
+        steps.append(
+            {
+                "agent": agent,
+                "duration_ms": int((time.time() - started) * 1000),
+                "summary": summary_fn(result),
+            }
+        )
+        return result
+
+    wa = run_step(
+        "WhatsAppAnalyzer",
+        lambda r: f"{'Forward detected' if r.is_forward else 'Not a forward'} — {len(r.red_flags)} pattern red flags, claim extracted",
+        lambda: WhatsAppForwardAnalyzer().analyze(text),
+    )
+
+    try:
+        content = run_step(
+            "ContentAnalyzer",
+            lambda r: f"Groq LLM misinformation score: {r.misinformation_score}/100",
+            lambda: content_analyzer.analyze(text),
+        )
+        content_score = content.misinformation_score
+    except Exception:
+        content_score = wa.misinformation_score
+
+    language = run_step(
+        "SarvamLanguageDetector",
+        lambda r: f"Language: {r.language} ({int(r.confidence * 100)}% confidence)",
+        lambda: SarvamLanguageDetector().detect(text),
+    )
+
+    started = time.time()
+    matches = _fact_check_matches(wa.claim_extracted, text)
+    steps.append(
+        {
+            "agent": "FactCheckCrossRef",
+            "duration_ms": int((time.time() - started) * 1000),
+            "summary": (
+                f"{len(matches)} related debunked claim(s) in live fact-checker feed"
+                if matches else "No matching debunked claims in live feed"
+            ),
+        }
+    )
+
+    if wa.forward_signals or wa.is_forward:
+        final_score = int(wa.misinformation_score * 0.35 + content_score * 0.65)
+        if content_score >= 80:
+            final_score = max(final_score, 75)
+    else:
+        final_score = int(wa.misinformation_score * 0.6 + content_score * 0.4)
+    if matches:
+        final_score = max(final_score, 80)  # claim matches a known debunk
+    final_score = min(final_score, 97)
+    risk_level = "HIGH" if final_score > 70 else "MED" if final_score > 40 else "LOW"
+
+    alert = run_step(
+        "ThreatClassifier",
+        lambda r: f"{r.threat_type} — severity {r.severity.upper()}",
+        lambda: threat_classifier.classify(
+            {
+                "campaign_detected": len(wa.forward_signals) >= 2,
+                "confidence_score": final_score,
+                "cluster_count": 0,
+                "bot_pressure": min(90, wa.forward_depth * 15),
+                "content_risk_score": content_score,
+                "claim": wa.claim_extracted,
+            }
+        ),
+    )
+
+    return {
+        "steps": steps,
+        "misinformation_score": final_score,
+        "risk_level": risk_level,
+        "language": language.language,
+        "claim_extracted": wa.claim_extracted,
+        "red_flags": wa.red_flags,
+        "fact_check_matches": matches,
+        "threat_alert": asdict(alert),
+    }

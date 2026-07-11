@@ -23,6 +23,7 @@ class AISignal:
     perplexity: float
     semantic_consistency: float
     topic_drift: float
+    post_count: int = 0
 
 
 @dataclass(slots=True)
@@ -127,6 +128,7 @@ class AIOperationDetector:
             perplexity=round(perplexity, 4),
             semantic_consistency=round(semantic_consistency, 4),
             topic_drift=round(topic_drift, 4),
+            post_count=len(texts),
         )
 
     @staticmethod
@@ -179,8 +181,15 @@ class AIOperationDetector:
 
     @staticmethod
     def _score_signal(signal: AISignal) -> float:
-        burstiness_score = min(100.0, signal.burstiness * 40.0)
-        perplexity_score = min(100.0, max(0.0, (signal.perplexity - 1.0) * 4.5))
-        consistency_score = (1.0 - signal.semantic_consistency) * 100.0
-        topic_drift_score = signal.topic_drift * 100.0
-        return 0.25 * burstiness_score + 0.25 * perplexity_score + 0.25 * consistency_score + 0.25 * topic_drift_score
+        # Too few posts to profile — return a low-confidence neutral score
+        if signal.post_count < 3:
+            return 25.0
+        # LLM tells: unnaturally regular post lengths, low-perplexity text,
+        # high internal similarity, minimal topic drift. Human baselines from
+        # live accounts: burstiness 0.5-1.0, perplexity 100-160,
+        # consistency <0.1, drift >0.9.
+        regularity_score = max(0.0, (1.0 - signal.burstiness)) * 100.0
+        low_perplexity_score = max(0.0, min(100.0, (150.0 - signal.perplexity) / 1.5))
+        consistency_score = min(100.0, signal.semantic_consistency * 200.0)
+        low_drift_score = max(0.0, (1.0 - signal.topic_drift)) * 100.0
+        return 0.25 * regularity_score + 0.25 * low_perplexity_score + 0.25 * consistency_score + 0.25 * low_drift_score
