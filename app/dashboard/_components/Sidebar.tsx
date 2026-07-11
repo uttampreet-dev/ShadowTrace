@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { label: 'Network Graph', href: '/dashboard/network' },
   { label: 'Alert Feed',    href: '/dashboard/alerts' },
   { label: 'WhatsApp Intel', href: '/dashboard/whatsapp' },
+  { label: 'Image Forensics', href: '/dashboard/image-forensics' },
   { label: 'Agents',        href: '/dashboard/agents' },
   { label: 'Account Intel', href: '/dashboard/account-intel' },
   { label: 'Reports',       href: '/dashboard/reports' },
@@ -17,6 +18,7 @@ const AGENTS = [
   { name: 'ContentAnalyzer',  status: 'online' },
   { name: 'NetworkMapper',    status: 'online' },
   { name: 'ThreatClassifier', status: 'online' },
+  { name: 'DeepfakeDetector', status: 'online' },
 ]
 
 const MONO: React.CSSProperties = {
@@ -49,6 +51,12 @@ export function BottomTabBar() {
       <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M8 1.5A6.5 6.5 0 0 0 2.3 11L1.5 14.5 5 13.7A6.5 6.5 0 1 0 8 1.5z" />
         <path d="M5.5 6.5c.5 2 2 3.5 4 4l1-1 1.5 1" />
+      </svg>
+    ),
+    '/dashboard/image-forensics': (
+      <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <rect x="1.5" y="2.5" width="13" height="11" /><circle cx="5.5" cy="6" r="1.25" />
+        <path d="M1.5 11l4-3.5 3 2.5 3-3 3 3.5" />
       </svg>
     ),
     '/dashboard/agents': (
