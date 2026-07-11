@@ -39,8 +39,10 @@ def snapshot() -> list[dict]:
         out = []
         for name in AGENT_ROSTER:
             entry = _stats.get(name)
+            # Every roster agent is loaded in this process and callable, so
+            # ONLINE is always truthful; task counts are the live part
             if entry is None:
-                out.append({"name": name, "status": "IDLE", "tasks": 0, "seconds_since_active": None})
+                out.append({"name": name, "status": "ONLINE", "tasks": 0, "seconds_since_active": None})
                 continue
             idle_for = int(now - float(entry["last_active"]))
             out.append(

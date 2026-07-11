@@ -177,7 +177,11 @@ function transform(backend: BackendResponse, handles: string[]): AccountIntelRes
       score:                backend.temporal.score,
       flagged_pairs:        backend.temporal.flagged_pairs,
       median_delay_seconds: backend.temporal.median_delay_seconds,
-      timeline:             backend.temporal.timeline,
+      // backend sends epoch seconds; the heatmap works in milliseconds
+      timeline: backend.temporal.timeline.map(entry => ({
+        account: entry.account,
+        posts:   entry.posts.map(post => ({ ...post, timestamp: post.timestamp * 1000 })),
+      })),
     },
     linguistic: {
       score:             backend.linguistic.score,

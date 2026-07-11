@@ -146,7 +146,7 @@ function mergeLiveStats(base: Agent[], live: LiveAgentStat[]): Agent[] {
     return {
       ...agent,
       tasks:      stat.tasks,
-      status:     stat.tasks > 0 ? 'ONLINE' : 'STANDBY',
+      status:     'ONLINE',
       load:       stat.tasks > 0 ? Math.min(95, 15 + stat.tasks * 8) : 0,
       lastActive: formatLastActive(stat.seconds_since_active),
     }
