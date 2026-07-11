@@ -47,11 +47,6 @@ content_analyzer = ContentAnalyzer()
 network_mapper = NetworkMapper()
 campaign_detector = CampaignDetector(content_analyzer=content_analyzer, network_mapper=network_mapper)
 threat_classifier = ThreatClassifier()
-temporal_coordinator = TemporalCoordinator()
-linguistic_fingerprinter = LinguisticFingerprinter()
-ai_operation_detector = AIOperationDetector()
-deepfake_detector = DeepfakeDetector()
-sarvam_language_detector = SarvamLanguageDetector()
 
 
 @router.get("/")
@@ -97,9 +92,9 @@ def generate_alert(payload: ThreatClassifierRequest) -> ThreatClassifierResponse
 @router.post("/account-intel/analyze", response_model=AccountIntelResponse)
 def analyze_account_intel(payload: AccountIntelAnalyzeRequest) -> AccountIntelResponse:
     try:
-        temporal = temporal_coordinator.analyze(payload.handles)
-        linguistic = linguistic_fingerprinter.analyze(payload.handles)
-        ai_operation = ai_operation_detector.analyze(payload.handles)
+        temporal = TemporalCoordinator().analyze(payload.handles)
+        linguistic = LinguisticFingerprinter().analyze(payload.handles)
+        ai_operation = AIOperationDetector().analyze(payload.handles)
         return AccountIntelResponse(
             temporal=TemporalCoordinationResponse(**asdict(temporal)),
             linguistic=LinguisticFingerprintResponse(**asdict(linguistic)),
@@ -118,7 +113,7 @@ def get_account_intel(handle: str) -> AccountIntelResponse:
 @router.post("/deepfake/analyze", response_model=DeepfakeAnalyzeResponse)
 def analyze_deepfake(payload: DeepfakeAnalyzeRequest) -> DeepfakeAnalyzeResponse:
     try:
-        result = deepfake_detector.analyze(payload.image_url)
+        result = DeepfakeDetector().analyze(payload.image_url)
         return DeepfakeAnalyzeResponse(**asdict(result))
     except Exception as exc:
         logger.exception("Deepfake analysis failed: %s", exc)
@@ -128,7 +123,7 @@ def analyze_deepfake(payload: DeepfakeAnalyzeRequest) -> DeepfakeAnalyzeResponse
 @router.post("/language/detect", response_model=LanguageDetectResponse)
 def detect_language(payload: LanguageDetectRequest) -> LanguageDetectResponse:
     try:
-        result = sarvam_language_detector.detect(payload.text)
+        result = SarvamLanguageDetector().detect(payload.text)
         return LanguageDetectResponse(**asdict(result))
     except Exception as exc:
         logger.exception("Language detection failed: %s", exc)

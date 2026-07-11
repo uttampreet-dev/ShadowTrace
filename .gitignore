@@ -46,3 +46,4 @@ next-env.d.ts
 secrets.json
 config.local.json
 .vercel
+tree.txt

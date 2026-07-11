@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import statistics
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -10,13 +11,13 @@ from typing import Any
 
 import feedparser
 import requests
-from bs4 import BeautifulSoup
 
 from db.neo4j_client import run_query
 
 logger = logging.getLogger(__name__)
 
-NITTER_RSS_URL = "https://nitter.net/{handle}/rss"
+NITTER_BASE = os.getenv("NITTER_BASE_URL", "https://nitter.poast.org")
+NITTER_RSS_URL = f"{NITTER_BASE}/{{handle}}/rss"
 REQUEST_TIMEOUT = 10
 COORDINATION_WINDOW_SECONDS = 60
 POST_LIMIT = 20
@@ -47,7 +48,12 @@ class TemporalCoordinationResult:
 
 
 def _clean_text(text: str) -> str:
-    cleaned = BeautifulSoup(text or "", "html.parser").get_text(" ", strip=True)
+    try:
+        from bs4 import BeautifulSoup
+
+        cleaned = BeautifulSoup(text or "", "html.parser").get_text(" ", strip=True)
+    except ImportError:
+        cleaned = text or ""
     return " ".join(cleaned.split())
 
 
@@ -110,32 +116,32 @@ def _fetch_posts_from_neo4j(handle: str) -> list[TimelinePost]:
 
 
 def _fetch_posts_from_nitter(handle: str) -> list[TimelinePost]:
-    url = NITTER_RSS_URL.format(handle=handle.lstrip("@"))
-    response = requests.get(url, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
-    feed = feedparser.parse(response.text)
+    try:
+        url = NITTER_RSS_URL.format(handle=handle.lstrip("@"))
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        feed = feedparser.parse(response.text)
 
-    posts: list[TimelinePost] = []
-    for entry in feed.entries[:POST_LIMIT]:
-        try:
-            timestamp = _normalize_timestamp(
-                entry.get("published") or entry.get("updated") or entry.get("created")
-            )
-        except Exception:
-            continue
-        text = _clean_text(str(entry.get("title", "")))
-        posts.append(TimelinePost(timestamp=timestamp, text_preview=text[:120]))
-    return posts
+        posts: list[TimelinePost] = []
+        for entry in feed.entries[:POST_LIMIT]:
+            try:
+                timestamp = _normalize_timestamp(
+                    entry.get("published") or entry.get("updated") or entry.get("created")
+                )
+            except Exception:
+                continue
+            text = _clean_text(str(entry.get("title", "")))
+            posts.append(TimelinePost(timestamp=timestamp, text_preview=text[:120]))
+        return posts
+    except Exception as exc:
+        logger.warning("Unable to fetch %s from Nitter: %s", handle, exc)
+        return []
 
 
 def _load_account_timeline(handle: str) -> AccountTimeline:
     posts = _fetch_posts_from_neo4j(handle)
     if not posts:
-        try:
-            posts = _fetch_posts_from_nitter(handle)
-        except Exception as exc:
-            logger.warning("Unable to fetch %s from Nitter: %s", handle, exc)
-            posts = []
+        posts = _fetch_posts_from_nitter(handle)
     return AccountTimeline(account=handle, posts=posts)
 
 

@@ -9,7 +9,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-SARVAM_API_URL = "https://api.sarvam.ai/v1/language/detect"
+SARVAM_API_URL = "https://api.sarvam.ai/text-lid"
 REQUEST_TIMEOUT = 15
 
 
@@ -35,16 +35,26 @@ class SarvamLanguageDetector:
             response = requests.post(
                 SARVAM_API_URL,
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "api-subscription-key": self.api_key,
                     "Content-Type": "application/json",
                 },
-                json={"text": text},
+                json={"input": text},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
             payload = response.json()
-            language = str(payload.get("language") or payload.get("detected_language") or "unknown")
-            confidence = float(payload.get("confidence") or payload.get("score") or 0.0)
+            language = str(
+                payload.get("language_code")
+                or payload.get("language")
+                or payload.get("detected_language")
+                or "unknown"
+            )
+            # text-lid returns no confidence field; treat a detected language as confident
+            confidence = float(
+                payload.get("confidence")
+                or payload.get("score")
+                or (1.0 if language != "unknown" else 0.0)
+            )
             return SarvamLanguageDetectionResult(language=language, confidence=max(0.0, min(1.0, confidence)))
         except Exception as exc:
             logger.exception("Sarvam language detection failed: %s", exc)

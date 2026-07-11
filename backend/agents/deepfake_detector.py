@@ -25,7 +25,9 @@ class DeepfakeDetectionResult:
 
 
 def _download_image(image_url: str) -> Image.Image:
-    response = requests.get(image_url, timeout=REQUEST_TIMEOUT)
+    # Wikimedia and most CDNs reject the default python-requests user agent
+    headers = {"User-Agent": "ShadowTrace/1.0 (image forensics; contact: admin@shadowtrace.app)"}
+    response = requests.get(image_url, headers=headers, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
     return Image.open(io.BytesIO(response.content)).convert("RGB")
 
@@ -99,5 +101,5 @@ class DeepfakeDetector:
             return DeepfakeDetectionResult(
                 manipulation_probability=0.0,
                 ela_image_base64="",
-                metadata_summary={"error": str(exc)},
+                metadata_summary={"error": str(exc), "analysis_failed": True},
             )

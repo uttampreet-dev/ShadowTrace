@@ -3,9 +3,8 @@ from __future__ import annotations
 import logging
 import math
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np

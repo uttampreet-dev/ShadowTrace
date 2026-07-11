@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import logging
-import math
 import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
-from sklearn.cluster import DBSCAN
-from sklearn.metrics.pairwise import cosine_similarity
 
 from db.neo4j_client import run_query
 
@@ -126,8 +123,14 @@ class LinguisticFingerprinter:
             similarity_matrix = [[1.0]]
             score = 0.0
         else:
+            from sklearn.cluster import DBSCAN
+            from sklearn.metrics.pairwise import cosine_similarity
+            from sklearn.preprocessing import MinMaxScaler
+
+            scaler = MinMaxScaler()
+            features_normalized = scaler.fit_transform(matrix)
             clustering = DBSCAN(eps=0.8, min_samples=2)
-            labels = clustering.fit_predict(matrix)
+            labels = clustering.fit_predict(features_normalized)
             clusters = [int(label) for label in labels]
             similarity = cosine_similarity(matrix)
             similarity_matrix = [[round(float(value), 4) for value in row] for row in similarity]

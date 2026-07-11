@@ -272,20 +272,15 @@ export default function AccountIntelPage() {
           }}
         >
           <TemporalHeatmap
-            data={{ ...result.temporal, timeline: [] }}
+            data={result.temporal}
             accounts={analyzed}
           />
           <FingerprintCluster
-            data={{
-              score:             result.linguistic.score,
-              clusters:          result.linguistic.clusters,
-              accounts:          [],
-              similarity_matrix: result.linguistic.similarity_matrix,
-            }}
+            data={result.linguistic}
             accounts={analyzed}
           />
           <AIOperationScores
-            data={{ score: result.ai_operation.score, accounts: [] }}
+            data={result.ai_operation}
             accounts={analyzed}
           />
         </div>
@@ -302,7 +297,9 @@ export default function AccountIntelPage() {
             linguistic_score:   result.linguistic.score,
             ai_operation_score: result.ai_operation.score,
             accounts_analyzed:  result.accounts_analyzed,
-            flagged_accounts:   Math.min(result.accounts_analyzed, Math.ceil(result.accounts_analyzed * 0.7)),
+            flagged_accounts:   result.ai_operation.accounts.length > 0
+              ? result.ai_operation.accounts.filter(a => a.verdict !== 'LIKELY_HUMAN').length
+              : Math.min(result.accounts_analyzed, Math.ceil(result.accounts_analyzed * 0.7)),
           }}
           accounts={analyzed}
           clusters={result.linguistic.clusters}
