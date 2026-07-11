@@ -16,12 +16,12 @@ const QUICK_TESTS = [
     url:   'https://upload.wikimedia.org/wikipedia/commons/2/24/Screenshot_of_the_N%27Ko_Wikipedia_main_page.jpg',
   },
   {
-    label: 'Test: Known Edited',
-    url:   'https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png',
+    label: 'Test: AI-Generated',
+    url:   'https://upload.wikimedia.org/wikipedia/commons/b/bb/Stable_Diffusion_-_In_the_street_-_8.jpg',
   },
   {
-    label: 'Test: Screenshot',
-    url:   'https://upload.wikimedia.org/wikipedia/commons/d/d4/Bangla_Wikipedia_main_page_screenshot_08.01.2015.png',
+    label: 'Test: Edited Composite',
+    url:   'https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png',
   },
 ]
 

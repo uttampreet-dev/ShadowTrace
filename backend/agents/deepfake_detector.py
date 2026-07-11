@@ -49,6 +49,9 @@ def _read_exif_metadata(image: Image.Image) -> dict[str, Any]:
                 value = value.decode("utf-8", errors="ignore")
             except Exception:
                 value = value.hex()
+        elif not isinstance(value, (str, int, float, bool)):
+            # EXIF can hold IFDRational and other non-JSON types
+            value = str(value)
         summary[name] = value
     return summary
 

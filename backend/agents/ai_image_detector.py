@@ -15,14 +15,49 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+# Ensemble: different detectors specialize in different generators (SDXL vs
+# SD1.x vs GAN), so the max across models is the reliable signal — any model
+# confidently flagging AI is strong evidence, while real photos stay low on all.
 HF_MODELS = [
     "Organika/sdxl-detector",
     "umm-maybe/AI-image-detector",
+    "haywoodsloan/ai-image-detector-deploy",
 ]
 HF_URL = "https://router.huggingface.co/hf-inference/models/{model}"
 REQUEST_TIMEOUT = 30
 
 AI_LABEL_HINTS = ("artificial", "ai", "fake", "generated", "sdxl")
+
+
+def _query_model(model: str, api_key: str, image_bytes: bytes) -> float | None:
+    """Return the model's AI probability for the image, or None on failure."""
+    try:
+        response = requests.post(
+            HF_URL.format(model=model),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "image/jpeg",
+                "X-Wait-For-Model": "true",
+            },
+            data=image_bytes,
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code != 200:
+            logger.info("HF model %s returned %s", model, response.status_code)
+            return None
+        predictions = response.json()
+        if not isinstance(predictions, list):
+            return None
+        for prediction in predictions:
+            label = str(prediction.get("label", "")).lower()
+            if any(hint in label for hint in AI_LABEL_HINTS):
+                return float(prediction.get("score", 0.0))
+        top = predictions[0] if predictions else {}
+        if str(top.get("label", "")).lower() in ("human", "real", "authentic"):
+            return 1.0 - float(top.get("score", 0.0))
+    except Exception as exc:
+        logger.info("HF model %s failed: %s", model, exc)
+    return None
 
 
 def detect_ai_image(image_bytes: bytes) -> dict | None:
@@ -31,39 +66,29 @@ def detect_ai_image(image_bytes: bytes) -> dict | None:
     if not api_key:
         return None
 
-    for model in HF_MODELS:
-        try:
-            response = requests.post(
-                HF_URL.format(model=model),
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "image/jpeg",
-                    "X-Wait-For-Model": "true",
-                },
-                data=image_bytes,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if response.status_code != 200:
-                logger.info("HF model %s returned %s", model, response.status_code)
-                continue
-            predictions = response.json()
-            if not isinstance(predictions, list):
-                continue
-            for prediction in predictions:
-                label = str(prediction.get("label", "")).lower()
-                if any(hint in label for hint in AI_LABEL_HINTS):
-                    return {
-                        "ai_probability": round(float(prediction.get("score", 0.0)), 4),
-                        "model": model,
-                    }
-            # Labels present but none AI-flavored — treat top 'human'/'real'
-            # label as the complement
-            top = predictions[0] if predictions else {}
-            if str(top.get("label", "")).lower() in ("human", "real", "authentic"):
-                return {
-                    "ai_probability": round(1.0 - float(top.get("score", 0.0)), 4),
-                    "model": model,
-                }
-        except Exception as exc:
-            logger.info("HF model %s failed: %s", model, exc)
-    return None
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=len(HF_MODELS)) as pool:
+        futures = {model: pool.submit(_query_model, model, api_key, image_bytes) for model in HF_MODELS}
+        scores = {model: future.result() for model, future in futures.items()}
+
+    valid = {model: score for model, score in scores.items() if score is not None}
+    if not valid:
+        return None
+
+    # A confident flag (>=0.9) from any specialist wins; otherwise use the
+    # median so one noisy model can't false-flag a real photo
+    best_model = max(valid, key=lambda m: valid[m])
+    if valid[best_model] >= 0.9:
+        return {
+            "ai_probability": round(valid[best_model], 4),
+            "model": f"{best_model} (ensemble of {len(valid)})",
+        }
+    ordered = sorted(valid.values())
+    median = ordered[len(ordered) // 2] if len(ordered) % 2 == 1 else (
+        (ordered[len(ordered) // 2 - 1] + ordered[len(ordered) // 2]) / 2
+    )
+    return {
+        "ai_probability": round(median, 4),
+        "model": f"ensemble median of {len(valid)} models",
+    }
