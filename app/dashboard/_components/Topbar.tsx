@@ -3,11 +3,14 @@
 import { usePathname } from 'next/navigation'
 
 const VIEW_NAMES: Record<string, string> = {
-  '/dashboard':         'OVERVIEW',
-  '/dashboard/network': 'NETWORK GRAPH',
-  '/dashboard/alerts':  'ALERT FEED',
-  '/dashboard/agents':  'AGENTS',
-  '/dashboard/reports': 'REPORTS',
+  '/dashboard':                 'OVERVIEW',
+  '/dashboard/whatsapp':        'WHATSAPP INTEL',
+  '/dashboard/image-forensics': 'IMAGE FORENSICS',
+  '/dashboard/account-intel':   'ACCOUNT INTEL',
+  '/dashboard/network':         'NETWORK GRAPH',
+  '/dashboard/alerts':          'ALERT FEED',
+  '/dashboard/agents':          'AGENTS',
+  '/dashboard/reports':         'REPORTS',
 }
 
 const MONO: React.CSSProperties = {
