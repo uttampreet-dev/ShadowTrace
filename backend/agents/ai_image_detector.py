@@ -24,7 +24,7 @@ HF_MODELS = [
     "haywoodsloan/ai-image-detector-deploy",
 ]
 HF_URL = "https://router.huggingface.co/hf-inference/models/{model}"
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 45
 
 AI_LABEL_HINTS = ("artificial", "ai", "fake", "generated", "sdxl")
 
@@ -76,19 +76,17 @@ def detect_ai_image(image_bytes: bytes) -> dict | None:
     if not valid:
         return None
 
-    # A confident flag (>=0.9) from any specialist wins; otherwise use the
-    # median so one noisy model can't false-flag a real photo
-    best_model = max(valid, key=lambda m: valid[m])
-    if valid[best_model] >= 0.9:
-        return {
-            "ai_probability": round(valid[best_model], 4),
-            "model": f"{best_model} (ensemble of {len(valid)})",
-        }
-    ordered = sorted(valid.values())
-    median = ordered[len(ordered) // 2] if len(ordered) % 2 == 1 else (
-        (ordered[len(ordered) // 2 - 1] + ordered[len(ordered) // 2]) / 2
-    )
+    # Corroboration rule: every model tested has confident false positives on
+    # some real-photo family, so a flag needs at least TWO models to agree.
+    # The second-highest score is exactly that — one liar can never flag alone.
+    ordered = sorted(valid.values(), reverse=True)
+    if len(ordered) >= 2:
+        corroborated = ordered[1]
+    else:
+        # Only one model responded — a single uncorroborated score must never
+        # confidently flag an image on its own
+        corroborated = min(ordered[0], 0.49)
     return {
-        "ai_probability": round(median, 4),
-        "model": f"ensemble median of {len(valid)} models",
+        "ai_probability": round(corroborated, 4),
+        "model": f"2-of-{len(valid)} model agreement",
     }
