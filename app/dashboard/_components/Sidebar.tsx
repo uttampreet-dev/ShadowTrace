@@ -3,14 +3,16 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+// Ordered as the investigation story: analyze content → trace the message →
+// verify the media → unmask the accounts → map the network → alerts → agents
 const NAV_ITEMS = [
   { label: 'Overview',      href: '/dashboard' },
-  { label: 'Network Graph', href: '/dashboard/network' },
-  { label: 'Alert Feed',    href: '/dashboard/alerts' },
   { label: 'WhatsApp Intel', href: '/dashboard/whatsapp' },
   { label: 'Image Forensics', href: '/dashboard/image-forensics' },
-  { label: 'Agents',        href: '/dashboard/agents' },
   { label: 'Account Intel', href: '/dashboard/account-intel' },
+  { label: 'Network Graph', href: '/dashboard/network' },
+  { label: 'Alert Feed',    href: '/dashboard/alerts' },
+  { label: 'Agents',        href: '/dashboard/agents' },
   { label: 'Reports',       href: '/dashboard/reports' },
 ]
 
