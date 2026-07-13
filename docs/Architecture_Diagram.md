@@ -1,5 +1,7 @@
 # ShadowTrace — Architecture Diagram
 
+*Phase 2 — 10-agent pipeline on a Neo4j AuraDB graph substrate, with live ingestion.*
+
 ---
 
 ## 1. System Architecture Overview
@@ -7,140 +9,264 @@
 ```mermaid
 flowchart TD
     subgraph SOURCES["📡  DATA SOURCES"]
-        TW["🐦 Twitter / X"]
-        TG["📱 Telegram Channels"]
-        WA["💬 WhatsApp Forwards"]
-        NA["📰 News Articles"]
+        BS["🦋 Bluesky Public API\nLIVE — any real handle"]
+        RSS["📰 Fact-Checker RSS\nLIVE — AltNews · BOOM\nFactChecker · The Quint"]
+        WA["💬 WhatsApp Forwards\nEN / HI / Hinglish"]
+        IMG["🖼 Image URLs\nELA + EXIF + AI classifiers"]
+        SEED["🗂 Synthetic Campaign Sets\nOperation Pulse · MedFear · ReviewStorm"]
     end
 
-    subgraph INGEST["⚡  DATA INGESTION PIPELINE"]
-        ING["FastAPI Ingestion Layer"]
+    subgraph INGEST["⚡  INGESTION LAYER"]
+        ING["FastAPI Ingestion\nbluesky_ingestion · fact_checker_ingestion · seed"]
     end
 
-    subgraph AGENTS["🤖  MULTI-AGENT AI PIPELINE"]
-        CA["ContentAnalyzer\n──────────────\nHuggingFace BERT\nLexical Fallback Scorer"]
-        DD["DeepfakeDetector\n──────────────\nComputer Vision\nGAN Artifact Detection\n⚠ STANDBY"]
-        NM["NetworkMapper\n──────────────\nNetworkX\nPageRank · Centrality\nCommunity Detection"]
-        CD["CampaignDetector\n──────────────\nLangGraph Orchestration\nSentenceTransformers\nNarrative Matching"]
-        TC["ThreatClassifier\n──────────────\nGroq LLaMA-3.3-70B\nRule-based Fallback"]
-    end
+    GRAPH[("🕸  Neo4j AuraDB\nAccount · Post · Campaign\nSHARED · PART_OF\nINTERACTS · COORDINATES_WITH")]
 
-    subgraph STORE["🗄  DATA LAYER"]
-        DB[("Supabase\nPostgreSQL + pgvector")]
+    subgraph AGENTS["🤖  10-AGENT PIPELINE"]
+        direction LR
+        subgraph CORE["Core Detection"]
+            CA["ContentAnalyzer\n──────────────\nGroq LLaMA-3.3-70B\n+ lexical blend"]
+            NM["NetworkMapper\n──────────────\nCypher bot scoring\nPageRank · Betweenness"]
+            CD["CampaignDetector\n──────────────\nLangGraph state machine"]
+            TC["ThreatClassifier\n──────────────\nGroq LLaMA-3.3-70B\nRule-based fallback"]
+        end
+        subgraph ACCT["Account Intelligence"]
+            TCO["TemporalCoordinator\n──────────────\n60s coordination windows"]
+            LF["LinguisticFingerprinter\n──────────────\nDBSCAN stylometry"]
+            AIO["AIOperationDetector\n──────────────\nPerplexity · Burstiness\nTopic drift"]
+        end
+        subgraph MEDIA["Media & Language"]
+            DD["DeepfakeDetector\n──────────────\nELA + EXIF\n+ HF ensemble"]
+            WAA["WhatsAppAnalyzer\n──────────────\nForward-chain patterns"]
+            SLD["SarvamLanguageDetector\n──────────────\nIndian-language ID"]
+        end
     end
 
     subgraph DASH["🖥  MISSION CONTROL DASHBOARD"]
         NG["Network Graph\nD3.js Force-Directed"]
+        AI2["Account Intel\nCoordination · Clusters"]
+        IF["Image Forensics\nELA Heatmap"]
+        WI["WhatsApp Intel\n5-Agent Investigation"]
+        LFEED["Live Feed\nDebunked Claims"]
         AF["Alert Feed\nSeverity Classified"]
-        AP["Analysis Panel\nContent Scanner"]
-        CT["Campaign Timeline\n24h Activity"]
-        EE["Evidence Export\nJSON Bundles"]
-        AS["Agent Monitor\nLive Status"]
+        AS["Agent Monitor\nReal Task Counts"]
     end
 
-    TW & TG & WA & NA --> ING
-    ING --> CA & DD & NM & CD
-    CA & DD & NM & CD --> TC
-    TC --> DB
-    DB --> NG & AF & AP & CT & EE & AS
+    BS & RSS & WA & IMG & SEED --> ING
+    ING --> GRAPH
+    GRAPH --> CA & NM & CD & TC
+    GRAPH --> TCO & LF & AIO
+    ING --> DD & WAA & SLD
+    CA & NM & CD & TC & TCO & LF & AIO & DD & WAA & SLD --> DASH
 
     style SOURCES fill:#0f172a,stroke:#3b82f6,color:#e2e8f0
     style INGEST fill:#0f172a,stroke:#7c3aed,color:#e2e8f0
     style AGENTS fill:#0f172a,stroke:#a855f7,color:#e2e8f0
-    style STORE fill:#0f172a,stroke:#22c55e,color:#e2e8f0
+    style CORE fill:#1a1a2e,stroke:#c084fc,color:#e2e8f0
+    style ACCT fill:#1a1a2e,stroke:#c084fc,color:#e2e8f0
+    style MEDIA fill:#1a1a2e,stroke:#c084fc,color:#e2e8f0
     style DASH fill:#0f172a,stroke:#f59e0b,color:#e2e8f0
 
     classDef sourceNode fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef agentNode fill:#2e1065,stroke:#a855f7,color:#e2e8f0
     classDef threatNode fill:#450a0a,stroke:#ef4444,color:#e2e8f0
-    classDef dbNode fill:#052e16,stroke:#22c55e,color:#e2e8f0
+    classDef dbNode fill:#052e16,stroke:#22c55e,color:#a7f3d0
     classDef dashNode fill:#1c1917,stroke:#f59e0b,color:#e2e8f0
 
-    class TW,TG,WA,NA sourceNode
+    class BS,RSS,WA,IMG,SEED sourceNode
     class ING agentNode
-    class CA,DD,NM,CD agentNode
+    class CA,NM,CD,TCO,LF,AIO,DD,WAA,SLD agentNode
     class TC threatNode
-    class DB dbNode
-    class NG,AF,AP,CT,EE,AS dashNode
+    class GRAPH dbNode
+    class NG,AI2,IF,WI,LFEED,AF,AS dashNode
 ```
 
 ---
 
-## 2. Agent Execution Sequence
+## 2. Neo4j AuraDB — Graph Data Model
+
+The graph is the substrate, not a cache. Coordination is a **relationship**, so it is stored as one.
+
+```mermaid
+erDiagram
+    ACCOUNT ||--o{ POST : SHARED
+    ACCOUNT }o--|| CAMPAIGN : PART_OF
+    POST }o--|| CAMPAIGN : PART_OF
+    ACCOUNT }o--o{ ACCOUNT : INTERACTS
+    ACCOUNT }o--o{ ACCOUNT : COORDINATES_WITH
+
+    ACCOUNT {
+        string key PK "campaign-scoped: cid:id"
+        string id
+        string handle
+        string campaign_id
+        int    age_days
+        int    followers
+        int    following
+        bool   verified
+        int    post_count
+        float  bot_score "written by Cypher scoring"
+        int    cluster_id "written by label propagation"
+        string source "bluesky | seed"
+    }
+    POST {
+        string key PK
+        string id
+        string text
+        int    timestamp "epoch seconds"
+    }
+    CAMPAIGN {
+        string id PK
+        string name
+        string threat_level
+        float  confidence
+        string narrative
+        string start_time
+    }
+```
+
+**The load-bearing edge — `COORDINATES_WITH`.**
+It is *computed*, never seeded. During ingestion, every pair of posts from different accounts landing within **60 seconds** of each other materialises a coordination edge carrying `delay_seconds`. Synchronised amplification therefore stops being an O(n²) batch scan and becomes a **one-hop traversal**.
+
+```cypher
+// Bot scoring runs inside AuraDB and persists onto the node
+MATCH (a:Account)-[:PART_OF]->(c:Campaign {id: $campaign_id})
+SET a.bot_score = (
+  CASE WHEN a.post_count > 50            THEN 0.25 ELSE 0 END +
+  CASE WHEN a.age_days   < 30            THEN 0.20 ELSE 0 END +
+  CASE WHEN a.following  > a.followers*10 THEN 0.20 ELSE 0 END
+)
+RETURN a.handle, a.bot_score ORDER BY a.bot_score DESC
+```
+
+---
+
+## 3. Live Account Intelligence — Execution Sequence
+
+The flow that proves ShadowTrace is not a mock: a **real handle**, ingested live, analysed by three agents through the same Cypher the seeded data uses.
 
 ```mermaid
 sequenceDiagram
     actor Analyst
-    participant UI as Mission Control
+    participant UI as Account Intel UI
     participant GW as FastAPI Gateway
-    participant CA as ContentAnalyzer
-    participant NM as NetworkMapper
-    participant CD as CampaignDetector
-    participant TC as ThreatClassifier
-    participant DB as Supabase
+    participant BSI as bluesky_ingestion
+    participant BS as Bluesky Public API
+    participant DB as Neo4j AuraDB
+    participant TCO as TemporalCoordinator
+    participant LF as LinguisticFingerprinter
+    participant AIO as AIOperationDetector
 
-    Analyst->>UI: Submit text / select campaign
-    UI->>GW: POST /analyze
+    Analyst->>UI: Enter real handle(s)
+    UI->>GW: POST /account-intel/analyze
 
     activate GW
+    GW->>BSI: ensure_account_data(handle)
+    activate BSI
+    BSI->>DB: MATCH (a:Account)-[:SHARED]->(p:Post) — count
+    alt Graph already has posts
+        DB-->>BSI: n > 0 → source = "graph"
+    else Unknown handle
+        BSI->>BS: getAuthorFeed (no auth, posts_no_replies)
+        BS-->>BSI: up to 20 real posts
+        BSI->>DB: MERGE Account · MERGE Post · MERGE SHARED
+        DB-->>BSI: source = "bluesky"
+    end
+    BSI-->>GW: sources map
+    deactivate BSI
 
-    GW->>CA: analyze(text)
-    activate CA
-    CA-->>GW: misinformation_score · confidence · signals
-    deactivate CA
+    par Three forensic layers over the same graph
+        GW->>TCO: analyze(handles)
+        TCO->>DB: posts ORDER BY timestamp
+        TCO-->>GW: score · flagged_pairs · median_delay · timeline
+    and
+        GW->>LF: analyze(handles)
+        LF->>DB: posts
+        LF-->>GW: DBSCAN clusters · similarity matrix · profiles
+    and
+        GW->>AIO: analyze(handles)
+        AIO->>DB: posts
+        AIO-->>GW: perplexity · burstiness · drift · verdict
+    end
 
-    GW->>NM: map_network(campaign_id)
-    activate NM
-    NM-->>GW: nodes · edges · bot_scores · clusters
-    deactivate NM
-
-    GW->>CD: detect_campaign(text, network_data)
-    activate CD
-    CD-->>GW: matched_campaign · coordination_confidence
-    deactivate CD
-
-    GW->>TC: classify_threat(content + network + campaign)
-    activate TC
-    TC-->>GW: threat_level · assessment · recommended_action
-    deactivate TC
-
-    GW->>DB: persist(campaign, alerts, network_nodes)
-    GW-->>UI: full analysis response
+    GW-->>UI: AccountIntelResponse
     deactivate GW
-
-    UI-->>Analyst: Threat report + network visualization + alert
+    UI-->>Analyst: Coordination score · cluster peers · AI verdict
 ```
 
 ---
 
-## 3. Bot Detection Scoring Pipeline
+## 4. `/investigate` — The 5-Agent Chain
+
+One WhatsApp forward, five agents, streamed step-by-step with real per-agent latency.
 
 ```mermaid
 flowchart LR
-    ACC(["👤 Account\nData"])
+    IN(["💬 Forward text"])
+    S1["1 · WhatsAppAnalyzer\n──────────────\nForward-chain patterns\nClaim extraction\nEN / HI / Hinglish"]
+    S2["2 · ContentAnalyzer\n──────────────\nGroq LLaMA-3.3-70B\n0-100 misinfo score"]
+    S3["3 · SarvamLanguageDetector\n──────────────\nIndian-language ID"]
+    S4["4 · FactCheckCrossRef\n──────────────\nToken overlap vs.\nlive debunked claims"]
+    S5["5 · ThreatClassifier\n──────────────\nGroq severity + rationale"]
+    OUT(["📋 Score · Risk · Red flags\nDebunk matches · Threat alert"])
 
-    subgraph SIGNALS["  8 Weighted Behavioral Signals  "]
-        F1["Posting Frequency Anomaly\n× 0.25"]
-        F2["Account Age Signal\n× 0.20"]
-        F3["Temporal Sync Detection\n× 0.20"]
-        F4["Retweet-to-Original Ratio\n× 0.10"]
-        F5["URL Repetition Rate\n× 0.10"]
-        F6["Hashtag Campaign Overlap\n× 0.05"]
-        F7["Semantic Narrative Similarity\n× 0.05"]
-        F8["Follower / Following Imbalance\n× 0.05"]
+    IN --> S1 --> S2 --> S3 --> S4 --> S5 --> OUT
+
+    classDef step fill:#1e1b4b,stroke:#818cf8,color:#e2e8f0
+    classDef io fill:#0f172a,stroke:#94a3b8,color:#e2e8f0
+    class S1,S2,S3,S4,S5 step
+    class IN,OUT io
+```
+
+**Score fusion.** The agents disagree by design, so the blend is explicit:
+
+```python
+if wa.forward_signals or wa.is_forward:      # forward-shaped → trust the LLM more
+    final = 0.35 * pattern_score + 0.65 * llm_score
+    if llm_score >= 80: final = max(final, 75)
+else:                                        # plain text → trust patterns more
+    final = 0.6 * pattern_score + 0.4 * llm_score
+
+if fact_check_matches:                       # a known debunk outranks both
+    final = max(final, 80)
+
+final = min(final, 97)                       # never claim certainty
+```
+
+The cap at 97 is deliberate. A detector that reports 100% confidence is lying.
+
+---
+
+## 5. Bot Detection — Composite Scoring
+
+Eight weighted behavioural signals, computed over graph metrics AuraDB and NetworkX both supply.
+
+```mermaid
+flowchart LR
+    ACC(["👤 Account\nmetadata + graph metrics"])
+
+    subgraph SIGNALS["  Weighted Behavioural Signals  "]
+        F1["Account Age\n(newer = worse)\n× 0.22"]
+        F2["Posting Frequency\n(posts / hour)\n× 0.18"]
+        F3["Connectivity\n(graph degree)\n× 0.14"]
+        F4["Follower / Following\nImbalance\n× 0.12"]
+        F5["Betweenness Centrality\n(bridge accounts)\n× 0.10"]
+        F6["Clustering Coefficient\n(inverted)\n× 0.10"]
+        F7["PageRank\n(amplifier influence)\n× 0.08"]
+        F8["Unverified Penalty\n+ 0.15"]
     end
 
-    SCORE{{"Composite\nBot Score"}}
+    SCORE{{"Composite\nBot Score\n0 – 100"}}
 
-    BOT["🤖 BOT\nScore > 0.65\nFlagged + Clustered"]
-    SUS["⚠️ SUSPICIOUS\nScore 0.45 – 0.65\nMonitored Amplifier"]
-    ORG["✅ ORGANIC\nScore < 0.45\nNormal Activity"]
+    BOT["🤖 BOT\nHigh composite\nFlagged + clustered"]
+    SUS["⚠️ SUSPICIOUS\nMid composite\nMonitored amplifier"]
+    ORG["✅ ORGANIC\nLow composite\nNormal activity"]
 
     ACC --> F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8
     F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8 --> SCORE
-    SCORE -->|"> 0.65"| BOT
-    SCORE -->|"0.45 – 0.65"| SUS
-    SCORE -->|"< 0.45"| ORG
+    SCORE -->|"high"| BOT
+    SCORE -->|"mid"| SUS
+    SCORE -->|"low"| ORG
 
     classDef signal fill:#1e1b4b,stroke:#6366f1,color:#e2e8f0
     classDef bot fill:#450a0a,stroke:#ef4444,color:#fca5a5
@@ -155,83 +281,187 @@ flowchart LR
     class ACC acc
 ```
 
+Two scoring paths exist. The **Cypher path** (§2) runs inside AuraDB on a coarse three-term rule and persists `bot_score` onto the node. The **composite path** above (`graph/bot_detection.py`) enriches with PageRank, betweenness and clustering, and is what NetworkMapper reports.
+
 ---
 
-## 4. LangGraph Agent State Machine
+## 6. Image Forensics — The Two-Model Agreement Rule
+
+Two independent questions, deliberately never allowed to overrule each other.
+
+```mermaid
+flowchart TD
+    IMG(["🖼 Image URL"])
+    DL["Download\n(custom UA — CDNs reject python-requests)"]
+
+    subgraph FORENSIC["  A · Was it EDITED?  "]
+        ELA["Error Level Analysis\nRe-compress @ q90 · diff · amplify"]
+        EXIF["EXIF Audit\nMissing metadata · Software tag\nMissing DateTime"]
+        HEUR{{"Heuristic\nmanipulation probability"}}
+    end
+
+    subgraph GEN["  B · Was it AI-GENERATED?  "]
+        M1["Organika/sdxl-detector"]
+        M2["umm-maybe/AI-image-detector"]
+        M3["haywoodsloan/ai-image-detector"]
+        VOTE{{"2-of-N agreement\ntake 2nd-highest score"}}
+    end
+
+    FUSE{{"Fusion"}}
+    OUT(["📊 Manipulation probability\n+ ELA heatmap\n+ AI verdict"])
+
+    IMG --> DL
+    DL --> ELA & EXIF
+    ELA & EXIF --> HEUR
+    DL -.->|"HF_API_KEY set"| M1 & M2 & M3
+    M1 & M2 & M3 --> VOTE
+    HEUR --> FUSE
+    VOTE --> FUSE
+    FUSE --> OUT
+
+    classDef forensic fill:#1e1b4b,stroke:#6366f1,color:#e2e8f0
+    classDef model fill:#2e1065,stroke:#a855f7,color:#e2e8f0
+    classDef gate fill:#431407,stroke:#f97316,color:#fed7aa
+    classDef io fill:#0f172a,stroke:#94a3b8,color:#e2e8f0
+
+    class ELA,EXIF model
+    class M1,M2,M3 model
+    class HEUR,VOTE,FUSE gate
+    class IMG,DL,OUT io
+```
+
+**Why the second-highest score, not the max?** Every classifier we tested has a family of real photographs it confidently mislabels. Taking the max means **any single liar can flag an image alone**. Taking the second-highest requires **two independent models to agree** — one false positive can never carry the verdict. If only one model responds, its score is clamped below the flagging threshold.
+
+**Why AI-generation cannot veto ELA.** They answer different questions. A real photograph, doctored in Photoshop, is *not* AI-generated — and an early build let the "not AI" verdict suppress the editing evidence, silently clearing manipulated images. Now a confident AI flag can only ever **raise** the score:
+
+```python
+if ai_probability is not None and ai_probability >= 0.5:
+    manipulation = 0.6 * ai_probability + 0.4 * heuristic   # AI flag raises it
+else:
+    manipulation = heuristic                                # ELA/EXIF stands alone
+```
+
+---
+
+## 7. LangGraph Campaign-Detection State Machine
 
 ```mermaid
 flowchart LR
     S(["▶ START"])
-    CA["ContentAnalysis\nBERT scoring\nSignal extraction"]
-    NA["NetworkAnalysis\nGraph construction\nBot scoring"]
-    COM["CommunityDetection\nPageRank\nModularity clustering"]
-    CM["CampaignMatching\nSemantic similarity\nNarrative matching"]
-    E(["⏹ END\nThreat report\ngenerated"])
+    LOAD["load\n──────────────\nResolve campaign\nfrom AuraDB or payload"]
+    ANA["analyze\n──────────────\nNetworkMapper → clusters, density, bot pressure\nContentAnalyzer → per-post risk\nSentenceTransformers → narrative similarity"]
+    FIN["finalize\n──────────────\nCampaignDetectionResult"]
+    E(["⏹ END"])
 
-    S -->|"raw text"| CA
-    CA -->|"content result"| NA
-    NA -->|"network graph"| COM
-    COM -->|"cluster assignments"| CM
-    CM -->|"matched campaign\n+ confidence"| E
+    S -->|"source"| LOAD
+    LOAD -->|"campaign state"| ANA
+    ANA -->|"analysis dict"| FIN
+    FIN --> E
 
     style S fill:#052e16,stroke:#22c55e,color:#a7f3d0
     style E fill:#450a0a,stroke:#ef4444,color:#fca5a5
 
     classDef stateNode fill:#1e1b4b,stroke:#818cf8,color:#e2e8f0
-    class CA,NA,COM,CM stateNode
+    class LOAD,ANA,FIN stateNode
 ```
+
+Confidence fuses three independent views of the same campaign:
+
+```python
+graph_behavior = min(100, 35*cluster_count + 300*density + 0.35*bot_pressure)
+confidence     = 0.35*content_risk + 0.25*narrative_similarity + 0.40*graph_behavior
+campaign_detected = confidence >= 55
+```
+
+Note the weighting: **graph behaviour outranks content**. That is the thesis of the whole system expressed as a coefficient — *what* was said matters less than *how it moved*.
+
+If LangGraph is unavailable, `_run_detection` executes the identical three steps synchronously. The state machine is an orchestration choice, never a hard dependency.
 
 ---
 
-## 5. Deployment Architecture
+## 8. Deployment Architecture
 
 ```mermaid
 flowchart TD
-    USER(["👤 User / Analyst"])
+    USER(["👤 Analyst"])
 
     subgraph CDN["🌐  Vercel Edge Network — Global CDN"]
-        subgraph NEXT["▲  Next.js 14 Application"]
-            STATIC["Static Assets\nLanding · CSS · Fonts"]
-            SC["Server Components\nDashboard Shell"]
-            PROXY["API Routes /api/*\nProxy + CORS + Fallback"]
+        subgraph NEXT["▲  Next.js 16 · App Router"]
+            STATIC["Static\nLanding · OutbreakCanvas"]
+            SC["Server Components\nDashboard shell"]
+            PROXY["API Routes /api/*\nProxy · CORS · Fallback"]
         end
     end
 
-    subgraph BACKEND["🐍  Python Backend  (local / cloud)"]
-        FASTAPI["FastAPI + Uvicorn\n:8000"]
-        subgraph PIPELINE["AI Agent Pipeline"]
-            A1["ContentAnalyzer"]
-            A2["DeepfakeDetector"]
-            A3["NetworkMapper"]
-            A4["CampaignDetector"]
-            A5["ThreatClassifier"]
+    subgraph RENDER["🐍  Render — FastAPI Agent Backend"]
+        FASTAPI["FastAPI + Uvicorn\nseed_database() on startup"]
+        subgraph PIPE["10-Agent Pipeline"]
+            P1["Core: Content · Network\nCampaign · Threat"]
+            P2["Account: Temporal\nLinguistic · AI-Operation"]
+            P3["Media: Deepfake\nWhatsApp · Sarvam"]
         end
     end
 
-    subgraph DATA["🗄  Data Layer"]
-        SB[("Supabase\nPostgreSQL + pgvector")]
+    subgraph EXT["☁  External Services"]
+        AURA[("Neo4j AuraDB\nPrimary graph store")]
+        GROQ["Groq\nLLaMA-3.3-70B"]
+        SARVAM["Sarvam AI\ntext-lid"]
+        HF["Hugging Face\nImage classifiers"]
+        BSKY["Bluesky\nPublic API"]
+        SB[("Supabase\nPostgres")]
     end
 
     USER --> CDN
     STATIC & SC --> USER
-    PROXY -->|"HTTP"| FASTAPI
-    FASTAPI --> A1 & A2 & A3 & A4 & A5
-    A1 & A2 & A3 & A4 & A5 --> SB
-    SB --> FASTAPI --> PROXY
+    PROXY -->|"HTTPS"| FASTAPI
+    FASTAPI --> P1 & P2 & P3
+    P1 & P2 --> AURA
+    P1 & P3 --> GROQ
+    P3 --> SARVAM & HF
+    P2 --> BSKY
+    FASTAPI --> SB
+    AURA --> FASTAPI --> PROXY
 
     style CDN fill:#0f172a,stroke:#6366f1,color:#e2e8f0
     style NEXT fill:#1a1a2e,stroke:#818cf8,color:#e2e8f0
-    style BACKEND fill:#0f172a,stroke:#f97316,color:#e2e8f0
-    style PIPELINE fill:#1a1a2e,stroke:#fb923c,color:#e2e8f0
-    style DATA fill:#0f172a,stroke:#22c55e,color:#e2e8f0
+    style RENDER fill:#0f172a,stroke:#f97316,color:#e2e8f0
+    style PIPE fill:#1a1a2e,stroke:#fb923c,color:#e2e8f0
+    style EXT fill:#0f172a,stroke:#22c55e,color:#e2e8f0
 
     classDef userNode fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef agentNode fill:#2e1065,stroke:#a855f7,color:#e2e8f0
-    classDef dbNode fill:#052e16,stroke:#22c55e,color:#e2e8f0
+    classDef dbNode fill:#052e16,stroke:#22c55e,color:#a7f3d0
+    classDef svcNode fill:#1c1917,stroke:#f59e0b,color:#e2e8f0
 
     class USER userNode
-    class A1,A2,A3,A4,A5 agentNode
-    class SB dbNode
+    class P1,P2,P3 agentNode
+    class AURA,SB dbNode
+    class GROQ,SARVAM,HF,BSKY svcNode
+```
+
+**Memory constraint drove real architecture.** Render's free tier caps at 512MB. `torch` + `transformers` OOM on load, which is why ContentAnalyzer is a **Groq API call with a deterministic lexical blend** rather than a local BERT checkpoint, and why `sentence-transformers` is lazily imported behind `lru_cache` instead of loaded at startup. The constraint made the system lighter *and* better: a 70B model beats a fine-tuned BERT-tiny at this task.
+
+---
+
+## 9. Degradation Behaviour
+
+Every external dependency has a defined failure mode. Nothing in the pipeline hard-fails.
+
+```mermaid
+flowchart LR
+    subgraph DEG["  Failure → Fallback  "]
+        D1["Neo4j unreachable\n→ JSON campaign fallback\n→ NetworkX in-memory graph"]
+        D2["Groq unavailable\n→ Deterministic lexical scorer\n→ Rule-based threat classifier"]
+        D3["No HF_API_KEY\n→ ELA + EXIF forensics only"]
+        D4["No SARVAM_API_KEY\n→ Regex EN/HI/Hinglish heuristic"]
+        D5["Bluesky fetch fails\n→ source='none', seeded graph still analysed"]
+        D6["Fact-checker feed down\n→ Skipped silently, others still served"]
+        D7["LangGraph missing\n→ Synchronous 3-step execution"]
+        D8["sentence-transformers missing\n→ Jaccard lexical similarity"]
+    end
+
+    classDef deg fill:#1c1917,stroke:#f59e0b,color:#fed7aa
+    class D1,D2,D3,D4,D5,D6,D7,D8 deg
 ```
 
 ---
