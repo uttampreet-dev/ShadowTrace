@@ -29,7 +29,8 @@ Real-time threat intelligence for **coordinated misinformation campaigns**. Past
 
 <p align="center">
   <b><a href="https://shadowtrace-bay.vercel.app">🔴 Live Mission Control</a></b> ·
-  <a href="#-demo--deliverables">Demo Video</a> ·
+  <b><a href="https://drive.google.com/file/d/1YnOtCxL0v3olpW3r8VIj0NXuuUKdwGMn/view?usp=drivesdk">🎬 Demo Video</a></b> ·
+  <a href="https://drive.google.com/file/d/1eyKBDLJjRpeZMWQr5PLIwWQ2vtXuUvv9/view?usp=sharing">Pitch Deck</a> ·
   <a href="#-how-to-run-the-project">Run Locally</a> ·
   <a href="docs/Technical_Documentation.md">Technical Docs</a>
 </p>
@@ -326,7 +327,7 @@ The topology signals are the ones that matter. **Betweenness** finds the bridge 
 
 ## 📽️ Demo & Deliverables
 
-- **Demo Video Link (Mandatory):** `[Paste your <5 min demo video link here]`
+- **Demo Video Link (Mandatory):** [Watch the demo](https://drive.google.com/file/d/1YnOtCxL0v3olpW3r8VIj0NXuuUKdwGMn/view?usp=drivesdk)
 - **Deployment Link:** **https://shadowtrace-bay.vercel.app**
 - **Pitch Deck / PPT:** [View the deck](https://drive.google.com/file/d/1eyKBDLJjRpeZMWQr5PLIwWQ2vtXuUvv9/view?usp=sharing)
 - **Technical Documentation:** [docs/Technical_Documentation.md](docs/Technical_Documentation.md) · [Architecture Diagrams](docs/Architecture_Diagram.md)
