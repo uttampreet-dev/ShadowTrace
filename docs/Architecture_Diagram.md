@@ -1,6 +1,6 @@
 # ShadowTrace — Architecture Diagram
 
-*Phase 2 — 10-agent pipeline on a Neo4j AuraDB graph substrate, with live ingestion.*
+*A 10-agent pipeline on a Neo4j AuraDB graph substrate, with live ingestion from Bluesky and Indian fact-checker feeds.*
 
 ---
 
@@ -9,47 +9,47 @@
 ```mermaid
 flowchart TD
     subgraph SOURCES["📡  DATA SOURCES"]
-        BS["🦋 Bluesky Public API\nLIVE — any real handle"]
-        RSS["📰 Fact-Checker RSS\nLIVE — AltNews · BOOM\nFactChecker · The Quint"]
-        WA["💬 WhatsApp Forwards\nEN / HI / Hinglish"]
-        IMG["🖼 Image URLs\nELA + EXIF + AI classifiers"]
-        SEED["🗂 Synthetic Campaign Sets\nOperation Pulse · MedFear · ReviewStorm"]
+        BS["🦋 Bluesky Public API<br/>LIVE — any real handle"]
+        RSS["📰 Fact-Checker RSS<br/>LIVE — AltNews · BOOM<br/>FactChecker · The Quint"]
+        WA["💬 WhatsApp Forwards<br/>EN / HI / Hinglish"]
+        IMG["🖼 Image URLs<br/>ELA + EXIF + AI classifiers"]
+        SEED["🗂 Synthetic Campaign Sets<br/>Operation Pulse · MedFear · ReviewStorm"]
     end
 
     subgraph INGEST["⚡  INGESTION LAYER"]
-        ING["FastAPI Ingestion\nbluesky_ingestion · fact_checker_ingestion · seed"]
+        ING["FastAPI Ingestion<br/>bluesky_ingestion · fact_checker_ingestion · seed"]
     end
 
-    GRAPH[("🕸  Neo4j AuraDB\nAccount · Post · Campaign\nSHARED · PART_OF\nINTERACTS · COORDINATES_WITH")]
+    GRAPH[("🕸  Neo4j AuraDB<br/>Account · Post · Campaign<br/>SHARED · PART_OF<br/>INTERACTS · COORDINATES_WITH")]
 
     subgraph AGENTS["🤖  10-AGENT PIPELINE"]
         direction LR
         subgraph CORE["Core Detection"]
-            CA["ContentAnalyzer\n──────────────\nGroq LLaMA-3.3-70B\n+ lexical blend"]
-            NM["NetworkMapper\n──────────────\nCypher bot scoring\nPageRank · Betweenness"]
-            CD["CampaignDetector\n──────────────\nLangGraph state machine"]
-            TC["ThreatClassifier\n──────────────\nGroq LLaMA-3.3-70B\nRule-based fallback"]
+            CA["ContentAnalyzer<br/>──────────────<br/>Groq LLaMA-3.3-70B<br/>+ lexical blend"]
+            NM["NetworkMapper<br/>──────────────<br/>Cypher bot scoring<br/>PageRank · Betweenness"]
+            CD["CampaignDetector<br/>──────────────<br/>LangGraph state machine"]
+            TC["ThreatClassifier<br/>──────────────<br/>Groq LLaMA-3.3-70B<br/>Rule-based fallback"]
         end
         subgraph ACCT["Account Intelligence"]
-            TCO["TemporalCoordinator\n──────────────\n60s coordination windows"]
-            LF["LinguisticFingerprinter\n──────────────\nDBSCAN stylometry"]
-            AIO["AIOperationDetector\n──────────────\nPerplexity · Burstiness\nTopic drift"]
+            TCO["TemporalCoordinator<br/>──────────────<br/>60s coordination windows"]
+            LF["LinguisticFingerprinter<br/>──────────────<br/>DBSCAN stylometry"]
+            AIO["AIOperationDetector<br/>──────────────<br/>Perplexity · Burstiness<br/>Topic drift"]
         end
         subgraph MEDIA["Media & Language"]
-            DD["DeepfakeDetector\n──────────────\nELA + EXIF\n+ HF ensemble"]
-            WAA["WhatsAppAnalyzer\n──────────────\nForward-chain patterns"]
-            SLD["SarvamLanguageDetector\n──────────────\nIndian-language ID"]
+            DD["DeepfakeDetector<br/>──────────────<br/>ELA + EXIF<br/>+ HF ensemble"]
+            WAA["WhatsAppAnalyzer<br/>──────────────<br/>Forward-chain patterns"]
+            SLD["SarvamLanguageDetector<br/>──────────────<br/>Indian-language ID"]
         end
     end
 
     subgraph DASH["🖥  MISSION CONTROL DASHBOARD"]
-        NG["Network Graph\nD3.js Force-Directed"]
-        AI2["Account Intel\nCoordination · Clusters"]
-        IF["Image Forensics\nELA Heatmap"]
-        WI["WhatsApp Intel\n5-Agent Investigation"]
-        LFEED["Live Feed\nDebunked Claims"]
-        AF["Alert Feed\nSeverity Classified"]
-        AS["Agent Monitor\nReal Task Counts"]
+        NG["Network Graph<br/>D3.js Force-Directed"]
+        AI2["Account Intel<br/>Coordination · Clusters"]
+        IF["Image Forensics<br/>ELA Heatmap"]
+        WI["WhatsApp Intel<br/>5-Agent Investigation"]
+        LFEED["Live Feed<br/>Debunked Claims"]
+        AF["Alert Feed<br/>Severity Classified"]
+        AS["Agent Monitor<br/>Real Task Counts"]
     end
 
     BS & RSS & WA & IMG & SEED --> ING
@@ -203,12 +203,12 @@ One WhatsApp forward, five agents, streamed step-by-step with real per-agent lat
 ```mermaid
 flowchart LR
     IN(["💬 Forward text"])
-    S1["1 · WhatsAppAnalyzer\n──────────────\nForward-chain patterns\nClaim extraction\nEN / HI / Hinglish"]
-    S2["2 · ContentAnalyzer\n──────────────\nGroq LLaMA-3.3-70B\n0-100 misinfo score"]
-    S3["3 · SarvamLanguageDetector\n──────────────\nIndian-language ID"]
-    S4["4 · FactCheckCrossRef\n──────────────\nToken overlap vs.\nlive debunked claims"]
-    S5["5 · ThreatClassifier\n──────────────\nGroq severity + rationale"]
-    OUT(["📋 Score · Risk · Red flags\nDebunk matches · Threat alert"])
+    S1["1 · WhatsAppAnalyzer<br/>──────────────<br/>Forward-chain patterns<br/>Claim extraction<br/>EN / HI / Hinglish"]
+    S2["2 · ContentAnalyzer<br/>──────────────<br/>Groq LLaMA-3.3-70B<br/>0-100 misinfo score"]
+    S3["3 · SarvamLanguageDetector<br/>──────────────<br/>Indian-language ID"]
+    S4["4 · FactCheckCrossRef<br/>──────────────<br/>Token overlap vs.<br/>live debunked claims"]
+    S5["5 · ThreatClassifier<br/>──────────────<br/>Groq severity + rationale"]
+    OUT(["📋 Score · Risk · Red flags<br/>Debunk matches · Threat alert"])
 
     IN --> S1 --> S2 --> S3 --> S4 --> S5 --> OUT
 
@@ -243,24 +243,24 @@ Eight weighted behavioural signals, computed over graph metrics AuraDB and Netwo
 
 ```mermaid
 flowchart LR
-    ACC(["👤 Account\nmetadata + graph metrics"])
+    ACC(["👤 Account<br/>metadata + graph metrics"])
 
     subgraph SIGNALS["  Weighted Behavioural Signals  "]
-        F1["Account Age\n(newer = worse)\n× 0.22"]
-        F2["Posting Frequency\n(posts / hour)\n× 0.18"]
-        F3["Connectivity\n(graph degree)\n× 0.14"]
-        F4["Follower / Following\nImbalance\n× 0.12"]
-        F5["Betweenness Centrality\n(bridge accounts)\n× 0.10"]
-        F6["Clustering Coefficient\n(inverted)\n× 0.10"]
-        F7["PageRank\n(amplifier influence)\n× 0.08"]
-        F8["Unverified Penalty\n+ 0.15"]
+        F1["Account Age<br/>(newer = worse)<br/>× 0.22"]
+        F2["Posting Frequency<br/>(posts / hour)<br/>× 0.18"]
+        F3["Connectivity<br/>(graph degree)<br/>× 0.14"]
+        F4["Follower / Following<br/>Imbalance<br/>× 0.12"]
+        F5["Betweenness Centrality<br/>(bridge accounts)<br/>× 0.10"]
+        F6["Clustering Coefficient<br/>(inverted)<br/>× 0.10"]
+        F7["PageRank<br/>(amplifier influence)<br/>× 0.08"]
+        F8["Unverified Penalty<br/>+ 0.15"]
     end
 
-    SCORE{{"Composite\nBot Score\n0 – 100"}}
+    SCORE{{"Composite<br/>Bot Score<br/>0 – 100"}}
 
-    BOT["🤖 BOT\nHigh composite\nFlagged + clustered"]
-    SUS["⚠️ SUSPICIOUS\nMid composite\nMonitored amplifier"]
-    ORG["✅ ORGANIC\nLow composite\nNormal activity"]
+    BOT["🤖 BOT<br/>High composite<br/>Flagged + clustered"]
+    SUS["⚠️ SUSPICIOUS<br/>Mid composite<br/>Monitored amplifier"]
+    ORG["✅ ORGANIC<br/>Low composite<br/>Normal activity"]
 
     ACC --> F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8
     F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8 --> SCORE
@@ -292,23 +292,23 @@ Two independent questions, deliberately never allowed to overrule each other.
 ```mermaid
 flowchart TD
     IMG(["🖼 Image URL"])
-    DL["Download\n(custom UA — CDNs reject python-requests)"]
+    DL["Download<br/>(custom UA — CDNs reject python-requests)"]
 
     subgraph FORENSIC["  A · Was it EDITED?  "]
-        ELA["Error Level Analysis\nRe-compress @ q90 · diff · amplify"]
-        EXIF["EXIF Audit\nMissing metadata · Software tag\nMissing DateTime"]
-        HEUR{{"Heuristic\nmanipulation probability"}}
+        ELA["Error Level Analysis<br/>Re-compress @ q90 · diff · amplify"]
+        EXIF["EXIF Audit<br/>Missing metadata · Software tag<br/>Missing DateTime"]
+        HEUR{{"Heuristic<br/>manipulation probability"}}
     end
 
     subgraph GEN["  B · Was it AI-GENERATED?  "]
         M1["Organika/sdxl-detector"]
         M2["umm-maybe/AI-image-detector"]
         M3["haywoodsloan/ai-image-detector"]
-        VOTE{{"2-of-N agreement\ntake 2nd-highest score"}}
+        VOTE{{"2-of-N agreement<br/>take 2nd-highest score"}}
     end
 
     FUSE{{"Fusion"}}
-    OUT(["📊 Manipulation probability\n+ ELA heatmap\n+ AI verdict"])
+    OUT(["📊 Manipulation probability<br/>+ ELA heatmap<br/>+ AI verdict"])
 
     IMG --> DL
     DL --> ELA & EXIF
@@ -348,9 +348,9 @@ else:
 ```mermaid
 flowchart LR
     S(["▶ START"])
-    LOAD["load\n──────────────\nResolve campaign\nfrom AuraDB or payload"]
-    ANA["analyze\n──────────────\nNetworkMapper → clusters, density, bot pressure\nContentAnalyzer → per-post risk\nSentenceTransformers → narrative similarity"]
-    FIN["finalize\n──────────────\nCampaignDetectionResult"]
+    LOAD["load<br/>──────────────<br/>Resolve campaign<br/>from AuraDB or payload"]
+    ANA["analyze<br/>──────────────<br/>NetworkMapper → clusters, density, bot pressure<br/>ContentAnalyzer → per-post risk<br/>SentenceTransformers → narrative similarity"]
+    FIN["finalize<br/>──────────────<br/>CampaignDetectionResult"]
     E(["⏹ END"])
 
     S -->|"source"| LOAD
@@ -387,28 +387,28 @@ flowchart TD
 
     subgraph CDN["🌐  Vercel Edge Network — Global CDN"]
         subgraph NEXT["▲  Next.js 16 · App Router"]
-            STATIC["Static\nLanding · OutbreakCanvas"]
-            SC["Server Components\nDashboard shell"]
-            PROXY["API Routes /api/*\nProxy · CORS · Fallback"]
+            STATIC["Static<br/>Landing · OutbreakCanvas"]
+            SC["Server Components<br/>Dashboard shell"]
+            PROXY["API Routes /api/*<br/>Proxy · CORS · Fallback"]
         end
     end
 
     subgraph RENDER["🐍  Render — FastAPI Agent Backend"]
-        FASTAPI["FastAPI + Uvicorn\nseed_database() on startup"]
+        FASTAPI["FastAPI + Uvicorn<br/>seed_database() on startup"]
         subgraph PIPE["10-Agent Pipeline"]
-            P1["Core: Content · Network\nCampaign · Threat"]
-            P2["Account: Temporal\nLinguistic · AI-Operation"]
-            P3["Media: Deepfake\nWhatsApp · Sarvam"]
+            P1["Core: Content · Network<br/>Campaign · Threat"]
+            P2["Account: Temporal<br/>Linguistic · AI-Operation"]
+            P3["Media: Deepfake<br/>WhatsApp · Sarvam"]
         end
     end
 
     subgraph EXT["☁  External Services"]
-        AURA[("Neo4j AuraDB\nPrimary graph store")]
-        GROQ["Groq\nLLaMA-3.3-70B"]
-        SARVAM["Sarvam AI\ntext-lid"]
-        HF["Hugging Face\nImage classifiers"]
-        BSKY["Bluesky\nPublic API"]
-        SB[("Supabase\nPostgres")]
+        AURA[("Neo4j AuraDB<br/>Primary graph store")]
+        GROQ["Groq<br/>LLaMA-3.3-70B"]
+        SARVAM["Sarvam AI<br/>text-lid"]
+        HF["Hugging Face<br/>Image classifiers"]
+        BSKY["Bluesky<br/>Public API"]
+        SB[("Supabase<br/>Postgres")]
     end
 
     USER --> CDN
@@ -450,14 +450,14 @@ Every external dependency has a defined failure mode. Nothing in the pipeline ha
 ```mermaid
 flowchart LR
     subgraph DEG["  Failure → Fallback  "]
-        D1["Neo4j unreachable\n→ JSON campaign fallback\n→ NetworkX in-memory graph"]
-        D2["Groq unavailable\n→ Deterministic lexical scorer\n→ Rule-based threat classifier"]
-        D3["No HF_API_KEY\n→ ELA + EXIF forensics only"]
-        D4["No SARVAM_API_KEY\n→ Regex EN/HI/Hinglish heuristic"]
-        D5["Bluesky fetch fails\n→ source='none', seeded graph still analysed"]
-        D6["Fact-checker feed down\n→ Skipped silently, others still served"]
-        D7["LangGraph missing\n→ Synchronous 3-step execution"]
-        D8["sentence-transformers missing\n→ Jaccard lexical similarity"]
+        D1["Neo4j unreachable<br/>→ JSON campaign fallback<br/>→ NetworkX in-memory graph"]
+        D2["Groq unavailable<br/>→ Deterministic lexical scorer<br/>→ Rule-based threat classifier"]
+        D3["No HF_API_KEY<br/>→ ELA + EXIF forensics only"]
+        D4["No SARVAM_API_KEY<br/>→ Regex EN/HI/Hinglish heuristic"]
+        D5["Bluesky fetch fails<br/>→ source='none', seeded graph still analysed"]
+        D6["Fact-checker feed down<br/>→ Skipped silently, others still served"]
+        D7["LangGraph missing<br/>→ Synchronous 3-step execution"]
+        D8["sentence-transformers missing<br/>→ Jaccard lexical similarity"]
     end
 
     classDef deg fill:#1c1917,stroke:#f59e0b,color:#fed7aa

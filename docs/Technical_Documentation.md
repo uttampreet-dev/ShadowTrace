@@ -1,6 +1,6 @@
 # ShadowTrace — Technical Documentation
 
-*Phase 2 — 10 agents, Neo4j AuraDB graph substrate, live ingestion from Bluesky and Indian fact-checker feeds.*
+*10 agents, a Neo4j AuraDB graph substrate, and live ingestion from Bluesky and Indian fact-checker feeds.*
 
 ---
 
@@ -11,11 +11,11 @@ ShadowTrace is a multi-agent threat-intelligence system for **coordinated misinf
 **Live Deployment:** https://shadowtrace-bay.vercel.app
 **Source Code:** https://github.com/uttampreet-dev/ShadowTrace
 
-### What changed since Phase 1
+### How the system evolved
 
-Phase 1 was four agents over an in-memory NetworkX graph, with a BERT-tiny classifier and synthetic data only. Phase 2 is a different system:
+Our first build was four agents over an in-memory NetworkX graph, with a BERT-tiny classifier and synthetic data only. What ships is a different system:
 
-| | Phase 1 | Phase 2 |
+| | First build | What ships |
 |---|---|---|
 | **Agents** | 4 (+1 standby) | **10, all live** |
 | **Graph** | NetworkX, in-memory | **Neo4j AuraDB** (NetworkX is now the fallback) |
@@ -70,7 +70,7 @@ Analyzer   Coordinator Fingerprinter  Detector        Language ID
 ### Architecture Decisions
 
 **Why Neo4j AuraDB — and why NetworkX is now the fallback.**
-Phase 1 argued NetworkX was sufficient for a hackathon MVP. That was true right up until coordination became the product. A bot's tell is not *what* it says but *that it said it 12 seconds after forty other accounts* — and that is a relationship, not a property. In AuraDB, `COORDINATES_WITH` is materialised once at ingest, so synchronised amplification becomes a **one-hop traversal** instead of an O(n²) rescan on every request. Bot scores and cluster IDs are computed in Cypher and **persisted onto the nodes**. NetworkX survives as an in-memory fallback for arbitrary payloads posted to `/analyze-network` and for when AuraDB is unreachable.
+Our first build argued NetworkX was sufficient for a hackathon MVP. That was true right up until coordination became the product. A bot's tell is not *what* it says but *that it said it 12 seconds after forty other accounts* — and that is a relationship, not a property. In AuraDB, `COORDINATES_WITH` is materialised once at ingest, so synchronised amplification becomes a **one-hop traversal** instead of an O(n²) rescan on every request. Bot scores and cluster IDs are computed in Cypher and **persisted onto the nodes**. NetworkX survives as an in-memory fallback for arbitrary payloads posted to `/analyze-network` and for when AuraDB is unreachable.
 
 **Why Groq LLaMA-3.3-70B replaced BERT.**
 Render's free tier caps at 512MB. `torch` + `transformers` OOM on load. Rather than pay for a larger box, we removed local model weights entirely: ContentAnalyzer is now an API call to a 70B model, blended `0.85 * llm + 0.15 * lexical`, with the deterministic lexical scorer doubling as the offline fallback. The whole backend runs in under 100MB — and a 70B model comfortably outperforms a fine-tuned BERT-tiny at Hinglish misinformation judgement. The constraint made the system both lighter and more accurate.
