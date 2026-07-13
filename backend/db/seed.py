@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from db.neo4j_client import run_query
+from db.seed_demo import seed_demo_accounts
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -172,6 +173,8 @@ def seed_database() -> None:
         path = DATA_DIR / fname
         if path.exists():
             seed_campaign(path, meta)
+
+    seed_demo_accounts()
 
     counts = run_query(
         "MATCH (n) RETURN labels(n)[0] AS label, count(n) AS count ORDER BY label"
