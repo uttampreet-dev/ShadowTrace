@@ -108,11 +108,53 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
   )
 }
 
-/** Deepfake-style decode: characters scramble, then resolve left to right */
-function DecodeText({ text, delay = 0 }: { text: string; delay?: number }) {
-  const [out, setOut] = useState(text.replace(/\S/g, '▓'))
+/** Continuous scroll parallax — the element drifts against scroll direction,
+ *  proportional to its distance from the viewport centre. Outer div is the
+ *  measuring frame; transform goes on the inner so the measurement never
+ *  feeds back into itself. */
+function Parallax({ children, speed = 0.08 }: { children: React.ReactNode; speed?: number }) {
+  const outerRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const GLYPHS = '█▓▒░<>/\\|=+*#@$%&'
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const outer = outerRef.current
+    const inner = innerRef.current
+    if (!outer || !inner) return
+    let raf = 0
+    const update = () => {
+      const r = outer.getBoundingClientRect()
+      const delta = r.top + r.height / 2 - window.innerHeight / 2
+      inner.style.transform = `translateY(${(-delta * speed).toFixed(1)}px)`
+    }
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [speed])
+  return (
+    <div ref={outerRef}>
+      <div ref={innerRef} style={{ willChange: 'transform' }}>{children}</div>
+    </div>
+  )
+}
+
+/** Deepfake-style decode: characters scramble, then resolve left to right.
+ *  Letter-like glyphs only — block characters render as ugly solid bars. */
+const DECODE_GLYPHS = 'ABCDEFGHKMNPRSTUVXYZ023456789<>/#$%&*+='
+
+function DecodeText({ text, delay = 0 }: { text: string; delay?: number }) {
+  // Initialize with the real text — random glyphs at first render would
+  // mismatch the server-rendered HTML and break hydration
+  const [out, setOut] = useState(text)
+  useEffect(() => {
     let revealed = 0
     let frame = 0
     let id: ReturnType<typeof setInterval>
@@ -130,7 +172,7 @@ function DecodeText({ text, delay = 0 }: { text: string; delay?: number }) {
             .split('')
             .map((ch, i) => {
               if (i < revealed || ch === ' ') return ch
-              return GLYPHS[Math.floor(Math.random() * GLYPHS.length)]
+              return DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)]
             })
             .join(''),
         )
@@ -139,6 +181,75 @@ function DecodeText({ text, delay = 0 }: { text: string; delay?: number }) {
     return () => { clearTimeout(start); clearInterval(id) }
   }, [text, delay])
   return <>{out}</>
+}
+
+/** Targeting-bracket corners — the lock-on reticle motif carried through the page */
+function Corners({ color, size = 9 }: { color: string; size?: number }) {
+  const base: React.CSSProperties = { position: 'absolute', width: size, height: size, pointerEvents: 'none' }
+  const b = `1.5px solid ${color}`
+  return (
+    <>
+      <span style={{ ...base, top: -1, left: -1, borderTop: b, borderLeft: b }} />
+      <span style={{ ...base, top: -1, right: -1, borderTop: b, borderRight: b }} />
+      <span style={{ ...base, bottom: -1, left: -1, borderBottom: b, borderLeft: b }} />
+      <span style={{ ...base, bottom: -1, right: -1, borderBottom: b, borderRight: b }} />
+    </>
+  )
+}
+
+/** Teal scanner glow that follows the cursor, revealing a faint node grid —
+ *  the cursor becomes ShadowTrace's scanning lens. Native cursor stays. */
+function CursorScanner() {
+  const glowRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [enabled, setEnabled] = useState(false)
+
+  useEffect(() => {
+    if (window.matchMedia('(pointer: fine)').matches) setEnabled(true)
+  }, [])
+
+  useEffect(() => {
+    if (!enabled) return
+    const glow = glowRef.current
+    const grid = gridRef.current
+    if (!glow || !grid) return
+
+    let tx = -1000, ty = -1000
+    let x = -1000, y = -1000
+    let raf = 0
+    const onMove = (e: PointerEvent) => { tx = e.clientX; ty = e.clientY }
+    const tick = () => {
+      x += (tx - x) * 0.22
+      y += (ty - y) * 0.22
+      glow.style.background =
+        `radial-gradient(380px circle at ${x}px ${y}px, rgba(0,212,170,0.08), rgba(59,130,246,0.045) 45%, transparent 70%)`
+      const mask = `radial-gradient(250px circle at ${x}px ${y}px, rgba(0,0,0,0.95), transparent 78%)`
+      grid.style.setProperty('mask-image', mask)
+      grid.style.setProperty('-webkit-mask-image', mask)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointermove', onMove) }
+  }, [enabled])
+
+  if (!enabled) return null
+  return (
+    <>
+      {/* soft light following the cursor */}
+      <div ref={glowRef} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none' }} />
+      {/* node grid revealed only inside the scan radius */}
+      <div
+        ref={gridRef}
+        aria-hidden="true"
+        style={{
+          position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none',
+          backgroundImage: 'radial-gradient(circle, rgba(0,212,170,0.25) 1px, transparent 1.6px)',
+          backgroundSize: '26px 26px',
+        }}
+      />
+    </>
+  )
 }
 
 interface FeedItem {
@@ -175,7 +286,7 @@ function LiveTicker() {
       style={{
         borderTop: '1px solid #1E2D4A',
         borderBottom: '1px solid #1E2D4A',
-        backgroundColor: '#0A1120',
+        backgroundColor: 'rgba(10, 17, 32, 0.55)',
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'stretch',
@@ -187,7 +298,7 @@ function LiveTicker() {
           display: 'flex', alignItems: 'center', gap: '8px',
           fontSize: '9.5px', letterSpacing: '0.14em', color: '#00D4AA',
           padding: '14px 18px', borderRight: '1px solid #1E2D4A',
-          backgroundColor: '#0D1526', whiteSpace: 'nowrap', flexShrink: 0, zIndex: 1,
+          backgroundColor: 'rgba(13, 21, 38, 0.7)', whiteSpace: 'nowrap', flexShrink: 0, zIndex: 1,
         }}
       >
         <span className="st-pulse-dot" style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#00D4AA', display: 'inline-block' }} />
@@ -268,8 +379,10 @@ function TiltCard({ item }: { item: (typeof CAPABILITIES)[number] }) {
       style={{
         position: 'relative',
         overflow: 'hidden',
-        border: '1px solid #1E2D4A',
-        backgroundColor: '#0D1526',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: '#1E2D4A',
+        backgroundColor: 'rgba(13, 21, 38, 0.58)',
         padding: '24px',
         transition: 'transform .25s cubic-bezier(.16,1,.3,1), border-color .25s, box-shadow .25s',
         willChange: 'transform',
@@ -286,6 +399,7 @@ function TiltCard({ item }: { item: (typeof CAPABILITIES)[number] }) {
           pointerEvents: 'none',
         }}
       />
+      <Corners color={`${item.color}88`} />
       <div style={{ position: 'relative' }}>
         <span style={{ ...FONT_MONO, fontSize: '10px', letterSpacing: '0.16em', color: item.color }}>
           {item.tag}
@@ -325,6 +439,7 @@ export default function Landing() {
   const [progress, setProgress] = useState(0)
   const [typed, setTyped] = useState('')
   const pipeline = useInView<HTMLDivElement>(0.3)
+  const heroContentRef = useRef<HTMLDivElement>(null)
 
   const PHRASE = 'Detect. Trace. Neutralize.'
 
@@ -343,13 +458,21 @@ export default function Landing() {
       const h = document.documentElement
       const max = h.scrollHeight - h.clientHeight
       setProgress(max > 0 ? (h.scrollTop / max) * 100 : 0)
+
+      // Hero parallax — the globe drifts down and fades as you scroll past
+      const y = window.scrollY
+      if (heroContentRef.current) {
+        heroContentRef.current.style.transform = `translateY(${y * 0.18}px)`
+        heroContentRef.current.style.opacity = String(Math.max(0, 1 - y / 900))
+      }
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   return (
-    <div style={{ backgroundColor: '#080E1A', color: '#E2E8F0', overflowX: 'hidden' }}>
+    <div className="lp-root" style={{ backgroundColor: '#080E1A', color: '#E2E8F0', overflowX: 'hidden' }}>
+      <CursorScanner />
       <style>{`
         @keyframes lp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         @keyframes lp-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
@@ -378,6 +501,9 @@ export default function Landing() {
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '2px', zIndex: 100, backgroundColor: 'transparent' }}>
         <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg,#00D4AA,#3B82F6)', transition: 'width .1s linear' }} />
       </div>
+
+      {/* Scroll companion — the globe journeys through the whole page */}
+      <OutbreakCanvas />
 
       {/* Film grain — premium texture, pure SVG, zero requests */}
       <div
@@ -428,6 +554,9 @@ export default function Landing() {
         </div>
       </nav>
 
+      {/* Content sits above the travelling globe layer */}
+      <div style={{ position: 'relative', zIndex: 2 }}>
+
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section
         style={{
@@ -435,19 +564,17 @@ export default function Landing() {
           minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
-          overflow: 'hidden',
           borderBottom: '1px solid #1E2D4A',
         }}
       >
-        <OutbreakCanvas />
-
         {/* Depth + readability layers */}
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(900px circle at 22% 45%, rgba(8,14,26,.92), rgba(8,14,26,.55) 55%, transparent 75%)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(8,14,26,.85) 0%, transparent 22%, transparent 72%, #080E1A 100%)', pointerEvents: 'none' }} />
 
         <div
+          ref={heroContentRef}
           className="lp-hero-pad"
-          style={{ position: 'relative', maxWidth: '1240px', margin: '0 auto', width: '100%', padding: '120px 40px 80px' }}
+          style={{ position: 'relative', maxWidth: '1240px', margin: '0 auto', width: '100%', padding: '120px 40px 80px', willChange: 'transform, opacity' }}
         >
           <div style={{ maxWidth: '660px' }}>
             {/* Live badge */}
@@ -552,15 +679,16 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Legend for the sim */}
+          {/* Legend for the sim — panel backdrop keeps it readable over the globe */}
           <div
             className="lp-legend"
             style={{
               ...FONT_MONO,
-              position: 'absolute', right: '40px', bottom: '80px',
+              position: 'absolute', right: '40px', bottom: '48px',
               display: 'flex', flexDirection: 'column', gap: '7px',
-              fontSize: '9.5px', letterSpacing: '0.1em', color: '#4A5568',
-              borderLeft: '1px solid #1E2D4A', paddingLeft: '12px',
+              fontSize: '9.5px', letterSpacing: '0.1em', color: '#8B9AB5',
+              border: '1px solid #1E2D4A', padding: '12px 14px',
+              backgroundColor: 'rgba(8, 14, 26, 0.72)', backdropFilter: 'blur(6px)',
             }}
           >
             <span style={{ color: '#8B9AB5', marginBottom: '2px' }}>LIVE SIMULATION</span>
@@ -598,19 +726,22 @@ export default function Landing() {
 
         <div className="lp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px' }}>
           {THREAT_STATS.map((s, i) => (
-            <Reveal key={s.label} delay={i * 110}>
-              <div style={{ border: '1px solid #1E2D4A', backgroundColor: '#0D1526', padding: '28px', height: '100%' }}>
-                <div style={{ ...FONT_MONO, fontSize: '46px', fontWeight: 800, color: '#EF4444', lineHeight: 1, marginBottom: '16px' }}>
-                  <CountUp to={s.value} suffix={s.suffix} />
+            <Parallax key={s.label} speed={[0.1, 0.045, 0.13][i]}>
+              <Reveal delay={i * 110}>
+                <div style={{ position: 'relative', border: '1px solid #1E2D4A', backgroundColor: 'rgba(13, 21, 38, 0.58)', padding: '28px', height: '100%' }}>
+                  <Corners color="#EF444477" />
+                  <div style={{ ...FONT_MONO, fontSize: '46px', fontWeight: 800, color: '#EF4444', lineHeight: 1, marginBottom: '16px' }}>
+                    <CountUp to={s.value} suffix={s.suffix} />
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#E2E8F0', lineHeight: 1.6, marginBottom: '10px' }}>
+                    {s.label}
+                  </div>
+                  <div style={{ ...FONT_MONO, fontSize: '10px', letterSpacing: '0.08em', color: '#4A5568' }}>
+                    {s.source.toUpperCase()}
+                  </div>
                 </div>
-                <div style={{ fontSize: '14px', color: '#E2E8F0', lineHeight: 1.6, marginBottom: '10px' }}>
-                  {s.label}
-                </div>
-                <div style={{ ...FONT_MONO, fontSize: '10px', letterSpacing: '0.08em', color: '#4A5568' }}>
-                  {s.source.toUpperCase()}
-                </div>
-              </div>
-            </Reveal>
+              </Reveal>
+            </Parallax>
           ))}
         </div>
       </section>
@@ -618,7 +749,7 @@ export default function Landing() {
       {/* ── System ────────────────────────────────────────────────────────── */}
       <section
         id="system"
-        style={{ borderTop: '1px solid #1E2D4A', borderBottom: '1px solid #1E2D4A', backgroundColor: '#0A1120' }}
+        style={{ borderTop: '1px solid #1E2D4A', borderBottom: '1px solid #1E2D4A', backgroundColor: 'rgba(10, 17, 32, 0.45)' }}
       >
         <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '110px 40px' }}>
           <Reveal>
@@ -636,9 +767,11 @@ export default function Landing() {
 
           <div className="lp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px' }}>
             {CAPABILITIES.map((c, i) => (
-              <Reveal key={c.title} delay={(i % 3) * 100}>
-                <TiltCard item={c} />
-              </Reveal>
+              <Parallax key={c.title} speed={[0.09, 0.04, 0.12][i % 3]}>
+                <Reveal delay={(i % 3) * 100}>
+                  <TiltCard item={c} />
+                </Reveal>
+              </Parallax>
             ))}
           </div>
         </div>
@@ -659,10 +792,12 @@ export default function Landing() {
           </p>
         </Reveal>
 
+        <Parallax speed={0.07}>
         <div
           ref={pipeline.ref}
-          style={{ border: '1px solid #1E2D4A', backgroundColor: '#0D1526', padding: '10px 0', position: 'relative', overflow: 'hidden' }}
+          style={{ border: '1px solid #1E2D4A', backgroundColor: 'rgba(13, 21, 38, 0.6)', padding: '10px 0', position: 'relative', overflow: 'hidden' }}
         >
+          <Corners color="#00D4AA66" size={12} />
           {/* scan line */}
           <div
             style={{
@@ -719,10 +854,11 @@ export default function Landing() {
             </p>
           </div>
         </div>
+        </Parallax>
       </section>
 
       {/* ── Stack marquee ─────────────────────────────────────────────────── */}
-      <section style={{ borderTop: '1px solid #1E2D4A', borderBottom: '1px solid #1E2D4A', backgroundColor: '#0A1120', padding: '26px 0', overflow: 'hidden' }}>
+      <section style={{ borderTop: '1px solid #1E2D4A', borderBottom: '1px solid #1E2D4A', backgroundColor: 'rgba(10, 17, 32, 0.55)', padding: '26px 0', overflow: 'hidden' }}>
         <div style={{ display: 'flex', width: 'max-content', animation: 'lp-marquee 34s linear infinite' }}>
           {[...STACK, ...STACK].map((t, i) => (
             <span
@@ -741,8 +877,9 @@ export default function Landing() {
       </section>
 
       {/* ── CTA ───────────────────────────────────────────────────────────── */}
-      <section style={{ position: 'relative', padding: '120px 40px', textAlign: 'center', overflow: 'hidden' }}>
+      <section id="cta" style={{ position: 'relative', padding: '120px 40px', textAlign: 'center' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(600px circle at 50% 40%, rgba(0,212,170,.09), transparent 70%)', pointerEvents: 'none' }} />
+        <Parallax speed={0.1}>
         <Reveal>
           <div style={{ position: 'relative', maxWidth: '720px', margin: '0 auto' }}>
             <h2 style={{ fontSize: '44px', fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.12, margin: '0 0 18px' }}>
@@ -767,6 +904,7 @@ export default function Landing() {
             </Link>
           </div>
         </Reveal>
+        </Parallax>
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
@@ -787,6 +925,8 @@ export default function Landing() {
           </span>
         </div>
       </footer>
+
+      </div>{/* end content layer */}
     </div>
   )
 }
